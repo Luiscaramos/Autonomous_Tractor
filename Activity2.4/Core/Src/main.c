@@ -62,6 +62,7 @@ static void MX_TIM1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+int position = 0;
 int CH1_DC;
 uint16_t VAL_Analog_Input;
 float VAL_CCW = 1999;
@@ -365,6 +366,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : ENC_A_Pin */
+  GPIO_InitStruct.Pin = ENC_A_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(ENC_A_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : ENC_B_Pin */
+  GPIO_InitStruct.Pin = ENC_B_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(ENC_B_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pins : Direction_1_Pin Direction_2_Pin */
   GPIO_InitStruct.Pin = Direction_1_Pin|Direction_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -373,6 +386,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
@@ -390,6 +406,15 @@ void Read_Potentiometer(void){
 	  VAL_Analog_Input = HAL_ADC_GetValue(&hadc1);
 
 }
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+ {
+ /* Prevent unused argument(s) compilation warning */
+ UNUSED(GPIO_Pin); //
+ if (HAL_GPIO_ReadPin(ENC_B_GPIO_Port,ENC_B_Pin) == GPIO_PIN_SET) position ++;
+  else position--;
+  HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13); // This is just a visual signal to observe any change
+ }
 /* USER CODE END 4 */
 
 /**
