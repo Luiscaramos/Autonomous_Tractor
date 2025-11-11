@@ -62,7 +62,8 @@ static void MX_TIM1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int position = 0;
+void HAL_GPIO_EXTI_IRQHandler(uint16_t GPIO_Pin);
+long position = 0;
 int CH1_DC;
 uint16_t VAL_Analog_Input;
 float VAL_CCW = 1999;
@@ -398,6 +399,8 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
 void Read_Potentiometer(void){
 	  HAL_ADC_Start(&hadc1);
 
@@ -410,11 +413,12 @@ void Read_Potentiometer(void){
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  {
  /* Prevent unused argument(s) compilation warning */
- UNUSED(GPIO_Pin); //
+ //UNUSED(GPIO_Pin); //
  if (HAL_GPIO_ReadPin(ENC_B_GPIO_Port,ENC_B_Pin) == GPIO_PIN_SET) position ++;
   else position--;
   HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13); // This is just a visual signal to observe any change
  }
+
 /* USER CODE END 4 */
 
 /**
