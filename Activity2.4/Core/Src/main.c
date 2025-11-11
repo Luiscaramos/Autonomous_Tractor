@@ -62,8 +62,9 @@ static void MX_TIM1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void HAL_GPIO_EXTI_IRQHandler(uint16_t GPIO_Pin);
+//void HAL_GPIO_EXTI_IRQHandler(uint16_t GPIO_Pin);
 long position = 0;
+float E_Units = 0;
 int CH1_DC;
 uint16_t VAL_Analog_Input;
 float VAL_CCW = 1999;
@@ -113,6 +114,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
 	  Read_Potentiometer();
 	  if (VAL_Analog_Input < 2000){
 		  HAL_GPIO_WritePin(Direction_1_GPIO_Port, Direction_1_Pin, GPIO_PIN_SET);
@@ -131,7 +133,8 @@ int main(void)
 		  CH1_DC = 0;
 	  }
 	  TIM1 -> CCR1 = CH1_DC;
-
+	  float ratio = 12 * 20.4;
+	  E_Units = (position/ratio)* 3.14*0.088;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
