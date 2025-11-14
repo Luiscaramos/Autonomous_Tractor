@@ -43,11 +43,13 @@
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint32_t count = 0;
+
 uint32_t last_button_state = 0;
 uint8_t button_state = 0;
 _Bool LD0 = 0;
 _Bool LD10 = 0;
+
+int count = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -95,6 +97,7 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   char message[200] = {'\0'};
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -104,40 +107,17 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  button_state = HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_5);
-	  if (button_state == GPIO_PIN_SET && last_button_state == GPIO_PIN_RESET)
+
+
+	  button_state = HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_13);
+
+	  if (!button_state)
 	  {
+		  sprintf(message, "Hello ");
+		  HAL_UART_Transmit(&huart2, (uint8_t*)message, sizeof(message), 100);
+
 		  count++;
-		  sprintf(message, "Count equals : %lu\n\r", (unsigned long)count);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)message, sizeof(message), 100);
-	  }
-
-	  last_button_state = button_state;
-
-	  if (HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_4))
-	  {
-		  count = 0;
-		  sprintf(message, "Count reseted to %lu\n\r", (unsigned long)count);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)message, sizeof(message), 100);
-	  }
-
-	  if (count == 0)
-	  {
-		  HAL_GPIO_WritePin(LD_ZERO_GPIO_Port, LD_ZERO_Pin, GPIO_PIN_SET);
-		  HAL_GPIO_WritePin(LD_TEN_GPIO_Port, LD_TEN_Pin, GPIO_PIN_RESET);
-		  LD0 = 1;
-		  LD10 = 0;
-
-	  } else if (count >= 10)
-	  {
-		  HAL_GPIO_WritePin(LD_TEN_GPIO_Port, LD_TEN_Pin, GPIO_PIN_SET);
-		  LD10 = 1;
-	  } else
-	  {
-		  HAL_GPIO_WritePin(LD_ZERO_GPIO_Port, LD_ZERO_Pin, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(LD_TEN_GPIO_Port, LD_TEN_Pin, GPIO_PIN_RESET);
-		  LD0 = 0;
-		  LD10 = 0;
+		  HAL_Delay(1000);
 	  }
 
   }
@@ -199,7 +179,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 9600;
+  huart2.Init.BaudRate = 57600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;

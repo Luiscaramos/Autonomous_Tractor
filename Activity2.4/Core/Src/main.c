@@ -117,6 +117,7 @@ int main(void)
 
 
 	  Read_Potentiometer();
+	  VAL_Analog_Input = 4000;
 	  if (VAL_Analog_Input < 2000){
 		  HAL_GPIO_WritePin(Direction_1_GPIO_Port, Direction_1_Pin, GPIO_PIN_SET);
 		  HAL_GPIO_WritePin(Direction_2_GPIO_Port, Direction_2_Pin, GPIO_PIN_RESET);

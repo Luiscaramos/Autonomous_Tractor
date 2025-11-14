@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <stdbool.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -62,14 +63,19 @@ static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
+void Direction(bool drive);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+int CH1_DC = 18000;
 long position_M1 = 0;
 long position_M2 = 0;
 
-int distance_M1 = 0;
+float distance_M1;
+float distance_M2;
+
 
 /* USER CODE END 0 */
 
@@ -87,7 +93,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+      HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -108,19 +114,38 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  Direction(0);
   while (1)
-  {
-    /* USER CODE END WHILE */
-	  float ratio = 12 * 20.4;
-	  distance_M1 = (position_M1/ratio)* 3.14*0.088;
-	  distance_M2 = (position_M1/ratio)* 3.14*0.088;
-    /* USER CODE BEGIN 3 */
-	  //hello justino :)
+    {
+
+  	  float ratio = 12 * 21;
+  	  distance_M1 = (position_M1/ratio)* 3.14*0.088;
+  	  distance_M2 = (position_M1/ratio)* 3.14*0.088;
+
+  	  if (distance_M1 > 3)
+  	  {
+  		  CH1_DC = 0;
+  	  }
+  	  else
+  	  {
+  		  CH1_DC = 18000;
+  	  }
+
+      /* USER CODE END WHILE */
+
+      /* USER CODE BEGIN 3 */
+  	  //hello Justino :)
+  	  TIM3 -> CCR1 = CH1_DC;
+  	  TIM3 -> CCR2 = CH1_DC;
+
   }
   /* USER CODE END 3 */
 }
@@ -527,6 +552,24 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void Direction(bool drive)
+{
+	if(drive){
+		 HAL_GPIO_WritePin(M1_Direction_1_GPIO_Port, M1_Direction_1_Pin, GPIO_PIN_SET);
+		 HAL_GPIO_WritePin(M1_Direction_2_GPIO_Port, M1_Direction_2_Pin, GPIO_PIN_RESET);
+
+		 HAL_GPIO_WritePin(M2_Direction_1_GPIO_Port, M2_Direction_1_Pin, GPIO_PIN_SET);
+		 HAL_GPIO_WritePin(M2_Direction_2_GPIO_Port, M2_Direction_2_Pin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		 HAL_GPIO_WritePin(M1_Direction_1_GPIO_Port, M1_Direction_1_Pin, GPIO_PIN_RESET);
+		 HAL_GPIO_WritePin(M1_Direction_2_GPIO_Port, M1_Direction_2_Pin, GPIO_PIN_SET);
+
+		 HAL_GPIO_WritePin(M2_Direction_1_GPIO_Port, M2_Direction_1_Pin, GPIO_PIN_RESET);
+		 HAL_GPIO_WritePin(M2_Direction_2_GPIO_Port, M2_Direction_2_Pin, GPIO_PIN_SET);
+	}
+}
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  {
     static uint32_t last_press = 0;
@@ -536,7 +579,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         uint32_t now = HAL_GetTick();
         if (now - last_press > 200) // 200 ms debounce
         {
-            position = 0;
+            position_M1 = 0;
+            position_M2 = 0;
             last_press = now;
         }
     }
@@ -547,6 +591,14 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             position_M1++;
         else
             position_M1--;
+        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+    }
+    else if (GPIO_Pin == M2_ENC_A_Pin)
+    {
+        if (HAL_GPIO_ReadPin(M1_ENC_B_GPIO_Port, M1_ENC_B_Pin) == GPIO_PIN_SET)
+            position_M2++;
+        else
+            position_M2--;
         HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
     }
  }
