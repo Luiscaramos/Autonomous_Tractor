@@ -66,6 +66,10 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+long position_M1 = 0;
+long position_M2 = 0;
+
+int distance_M1 = 0;
 
 /* USER CODE END 0 */
 
@@ -112,9 +116,11 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  float ratio = 12 * 20.4;
+	  distance_M1 = (position_M1/ratio)* 3.14*0.088;
+	  distance_M2 = (position_M1/ratio)* 3.14*0.088;
     /* USER CODE BEGIN 3 */
-	  //hello justino
+	  //hello justino :)
   }
   /* USER CODE END 3 */
 }
@@ -467,23 +473,23 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, M2_Direction_1_Pin|M2_Direction_2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : ENC_A_Pin */
-  GPIO_InitStruct.Pin = ENC_A_Pin;
+  /*Configure GPIO pins : B1_Pin M1_ENC_A_Pin */
+  GPIO_InitStruct.Pin = B1_Pin|M1_ENC_A_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(ENC_A_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : ENC_B_Pin */
-  GPIO_InitStruct.Pin = ENC_B_Pin;
+  /*Configure GPIO pin : M1_ENC_B_Pin */
+  GPIO_InitStruct.Pin = M1_ENC_B_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(ENC_B_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(M1_ENC_B_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : M2_ENC_A_Pin */
+  GPIO_InitStruct.Pin = M2_ENC_A_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(M2_ENC_A_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : M1_Direction_2_Pin M1_Direction_1_Pin */
   GPIO_InitStruct.Pin = M1_Direction_2_Pin|M1_Direction_1_Pin;
@@ -491,6 +497,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : M2_ENC_B_Pin */
+  GPIO_InitStruct.Pin = M2_ENC_B_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(M2_ENC_B_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : M2_Direction_1_Pin M2_Direction_2_Pin */
   GPIO_InitStruct.Pin = M2_Direction_1_Pin|M2_Direction_2_Pin;
@@ -503,6 +515,9 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
@@ -512,6 +527,29 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+ {
+    static uint32_t last_press = 0;
+
+    if (GPIO_Pin == GPIO_PIN_13)
+    {
+        uint32_t now = HAL_GetTick();
+        if (now - last_press > 200) // 200 ms debounce
+        {
+            position = 0;
+            last_press = now;
+        }
+    }
+
+    else if (GPIO_Pin == M1_ENC_A_Pin)
+    {
+        if (HAL_GPIO_ReadPin(M1_ENC_B_GPIO_Port, M1_ENC_B_Pin) == GPIO_PIN_SET)
+            position_M1++;
+        else
+            position_M1--;
+        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+    }
+ }
 
 /* USER CODE END 4 */
 
