@@ -115,6 +115,7 @@ int main(void)
   while (1)
   {
 
+
 	  Read_Potentiometer();
 	  if (VAL_Analog_Input < 2000){
 		  HAL_GPIO_WritePin(Direction_1_GPIO_Port, Direction_1_Pin, GPIO_PIN_SET);
@@ -415,11 +416,26 @@ void Read_Potentiometer(void){
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  {
- /* Prevent unused argument(s) compilation warning */
- //UNUSED(GPIO_Pin); //
- if (HAL_GPIO_ReadPin(ENC_B_GPIO_Port,ENC_B_Pin) == GPIO_PIN_SET) position ++;
-  else position--;
-  HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13); // This is just a visual signal to observe any change
+    static uint32_t last_press = 0;
+
+    if (GPIO_Pin == GPIO_PIN_13)
+    {
+        uint32_t now = HAL_GetTick();
+        if (now - last_press > 200) // 200 ms debounce
+        {
+            position = 0;
+            last_press = now;
+        }
+    }
+
+    else if (GPIO_Pin == ENC_A_Pin)
+    {
+        if (HAL_GPIO_ReadPin(ENC_B_GPIO_Port, ENC_B_Pin) == GPIO_PIN_SET)
+            position++;
+        else
+            position--;
+        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+    }
  }
 
 /* USER CODE END 4 */
