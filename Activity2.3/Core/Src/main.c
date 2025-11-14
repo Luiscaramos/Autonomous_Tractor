@@ -111,14 +111,15 @@ int main(void)
 
 	  button_state = HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_13);
 
-	  if (!button_state)
-	  {
-		  sprintf(message, "Hello ");
-		  HAL_UART_Transmit(&huart2, (uint8_t*)message, sizeof(message), 100);
+	    if (button_state)  // button pressed
+	    {
+	        sprintf(message, "Hello World!\r\n");
+	        HAL_UART_Transmit(&huart2, (uint8_t*)message, strlen(message), 100);
 
-		  count++;
-		  HAL_Delay(1000);
-	  }
+	        count++;
+	        HAL_Delay(1000);
+	        HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	    }
 
   }
   /* USER CODE END 3 */

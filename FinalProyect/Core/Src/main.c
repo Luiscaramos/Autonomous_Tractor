@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include <stdbool.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -73,6 +72,10 @@ int CH1_DC = 18000;
 long position_M1 = 0;
 long position_M2 = 0;
 
+int ackerman = 10000;
+
+float target = 3.27;
+
 float distance_M1;
 float distance_M2;
 
@@ -93,7 +96,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-      HAL_Init();
+  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -117,20 +120,23 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   Direction(0);
+
   while (1)
     {
 
-  	  float ratio = 12 * 21;
-  	  distance_M1 = (position_M1/ratio)* 3.14*0.088;
-  	  distance_M2 = (position_M1/ratio)* 3.14*0.088;
 
-  	  if (distance_M1 > 3)
+
+  	  float ratio = 12 * 20.5;
+  	  distance_M1 = (position_M1/ratio)* 3.14*0.087;
+  	  distance_M2 = (position_M1/ratio)* 3.14*0.087;
+
+  	  if (distance_M1 > target)
   	  {
   		  CH1_DC = 0;
   	  }
@@ -139,12 +145,13 @@ int main(void)
   		  CH1_DC = 18000;
   	  }
 
-      /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-      /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
   	  //hello Justino :)
   	  TIM3 -> CCR1 = CH1_DC;
   	  TIM3 -> CCR2 = CH1_DC;
+  	  TIM2 -> CCR3 = ackerman;
 
   }
   /* USER CODE END 3 */
@@ -342,7 +349,7 @@ static void MX_TIM2_Init(void)
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 19999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
