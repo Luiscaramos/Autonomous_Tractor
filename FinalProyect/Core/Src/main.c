@@ -110,7 +110,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-s  HAL_Init();
+  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -154,7 +154,7 @@ s  HAL_Init();
   	  distance_M1 = (position_M1/ratio)* 3.14*0.087;
   	  distance_M2 = (position_M1/ratio)* 3.14*0.087;
 
-  	  angular_velocity_M1 =  ( (delta_M1/(20.1*12))/(0.1/60));
+  	  angular_velocity_M1 =  (delta_M1/(20.1*12))/(0.01/60);
 
   	  if (distance_M1 > target)
   	  {
