@@ -70,16 +70,29 @@ void Direction(bool drive);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 int CH1_DC = 18000;
+
+float angular_velocity_M1;
+float angular_velocity_M2;
+
 long position_M1 = 0;
 long position_M2 = 0;
 
+long last_position_M1 = 0;
+long last_position_M2 = 0;
+
 int ackerman = 20000;
+
+float d_time = 0.1;
+float ratio = 12 * 20.5;
+
+
+int delta_M1;
+int delta_M2;
 
 float target = 5;
 
 float distance_M1;
 float distance_M2;
-
 
 /* USER CODE END 0 */
 
@@ -97,7 +110,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+s  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -118,10 +131,14 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_Base_Start_IT(&htim1);
+
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -133,9 +150,11 @@ int main(void)
 
 
 
-  	  float ratio = 12 * 20.5;
+
   	  distance_M1 = (position_M1/ratio)* 3.14*0.087;
   	  distance_M2 = (position_M1/ratio)* 3.14*0.087;
+
+  	  angular_velocity_M1 =  ( (delta_M1/(20.1*12))/(0.1/60));
 
   	  if (distance_M1 > target)
   	  {
@@ -465,7 +484,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 57600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -560,6 +579,23 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if (htim->Instance == TIM1)
+	{
+		HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_5);
+
+		delta_M1 = (position_M1-last_position_M1);
+
+		last_position_M1 = position_M1;
+
+		delta_M2 = (last_position_M1 - position_M1);
+		angular_velocity_M1 =  ( (delta_M2/ratio) /d_time);
+		last_position_M2 = position_M2;
+	}
+}
+
 void Direction(bool drive)
 {
 	if(drive){
@@ -578,6 +614,7 @@ void Direction(bool drive)
 		 HAL_GPIO_WritePin(M2_Direction_2_GPIO_Port, M2_Direction_2_Pin, GPIO_PIN_SET);
 	}
 }
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  {
     static uint32_t last_press = 0;
