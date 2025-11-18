@@ -656,7 +656,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5|M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, M2_Direction_1_Pin|M2_Direction_2_Pin, GPIO_PIN_RESET);
@@ -679,8 +679,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(M2_ENC_A_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : M1_Direction_2_Pin M1_Direction_1_Pin TRIG_Pin */
-  GPIO_InitStruct.Pin = M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin;
+  /*Configure GPIO pins : PA5 M1_Direction_2_Pin M1_Direction_1_Pin TRIG_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_5|M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -772,7 +772,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             position_M1++;
         else
             position_M1--;
-        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+        //HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
     }
     else if (GPIO_Pin == M2_ENC_A_Pin)
     {
@@ -780,7 +780,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             position_M2++;
         else
             position_M2--;
-        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+        // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
     }
 
 
