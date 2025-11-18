@@ -471,7 +471,7 @@ static void MX_TIM2_Init(void)
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -594,7 +594,7 @@ static void MX_TIM4_Init(void)
   sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
   sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
   sConfigIC.ICFilter = 0;
-  if (HAL_TIM_IC_ConfigChannel(&htim4, &sConfigIC, TIM_CHANNEL_3) != HAL_OK)
+  if (HAL_TIM_IC_ConfigChannel(&htim4, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -656,7 +656,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5|M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, M2_Direction_1_Pin|M2_Direction_2_Pin, GPIO_PIN_RESET);
@@ -679,8 +679,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(M2_ENC_A_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA5 M1_Direction_2_Pin M1_Direction_1_Pin TRIG_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_5|M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin;
+  /*Configure GPIO pins : M1_Direction_2_Pin M1_Direction_1_Pin TRIG_Pin */
+  GPIO_InitStruct.Pin = M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -692,12 +692,21 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(M2_ENC_B_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PB10 PB11 PB8 PB9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_8|GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pins : M2_Direction_1_Pin M2_Direction_2_Pin */
   GPIO_InitStruct.Pin = M2_Direction_1_Pin|M2_Direction_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure peripheral I/O remapping */
+  __HAL_AFIO_REMAP_I2C1_ENABLE();
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);

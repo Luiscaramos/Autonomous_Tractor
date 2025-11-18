@@ -80,8 +80,6 @@ void Error_Handler(void);
 #define M1_Direction_1_GPIO_Port GPIOA
 #define M2_ENC_B_Pin GPIO_PIN_0
 #define M2_ENC_B_GPIO_Port GPIOB
-#define TIM_SERVO_Pin GPIO_PIN_10
-#define TIM_SERVO_GPIO_Port GPIOB
 #define TIM_M1_Pin GPIO_PIN_6
 #define TIM_M1_GPIO_Port GPIOC
 #define TIM_M2_Pin GPIO_PIN_7
@@ -96,11 +94,13 @@ void Error_Handler(void);
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
 #define TCK_GPIO_Port GPIOA
+#define PWM_SERVO_Pin GPIO_PIN_15
+#define PWM_SERVO_GPIO_Port GPIOA
 #define M2_Direction_1_Pin GPIO_PIN_4
 #define M2_Direction_1_GPIO_Port GPIOB
 #define M2_Direction_2_Pin GPIO_PIN_5
 #define M2_Direction_2_GPIO_Port GPIOB
-#define ECHO_Pin GPIO_PIN_8
+#define ECHO_Pin GPIO_PIN_6
 #define ECHO_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
