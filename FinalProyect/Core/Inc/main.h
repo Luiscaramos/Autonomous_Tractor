@@ -80,6 +80,8 @@ void Error_Handler(void);
 #define M1_Direction_1_GPIO_Port GPIOA
 #define M2_ENC_B_Pin GPIO_PIN_0
 #define M2_ENC_B_GPIO_Port GPIOB
+#define TRIG_Pin GPIO_PIN_9
+#define TRIG_GPIO_Port GPIOA
 #define TMS_Pin GPIO_PIN_13
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
@@ -88,6 +90,8 @@ void Error_Handler(void);
 #define M2_Direction_1_GPIO_Port GPIOB
 #define M2_Direction_2_Pin GPIO_PIN_5
 #define M2_Direction_2_GPIO_Port GPIOB
+#define ECHO_Pin GPIO_PIN_8
+#define ECHO_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
