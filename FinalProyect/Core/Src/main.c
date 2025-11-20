@@ -72,7 +72,6 @@ void Direction(bool drive);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 int CH1_DC = 18000;
-int POTATO = 0;
 float angular_velocity_M1;
 float angular_velocity_M2;
 
@@ -82,10 +81,10 @@ long position_M2 = 0;
 long last_position_M1 = 0;
 long last_position_M2 = 0;
 
-int ackerman = 2800;
+int ackerman = 1900;
 //1000 = derecha
-//2000 = recto
-//3000 = izquierda
+//1900 = recto
+//2800 = izquierda
 
 
 
@@ -96,10 +95,59 @@ float ratio = 12 * 20.5;
 int delta_M1;
 int delta_M2;
 
-float target = 5;
+float target_distance = 1;  //m
+float target_speed = 0.17;  //m/s
+float accel = 0.1;
+float deccel = 0.1;
+
+
+float T1 = target_speed/accel; //s
+float T2 = Tt - deccel;
+float T3 = Tt;
+
+
+float d_accel = 0.5*accel*T1^2;
+float d_decel = 0.5*max_speed^2/deccel;
+
+float d_ramps = d_accel + d_decel;
+
+
+float d_const = target_distance - d_ramps;
+float T_const = d_const / max_speed;
+
+
+float MotionProfile_getVelocity(float t)
+{
+    if (t < T1)
+        return accel*t;
+
+    else if (t < T2)
+        return target_speed;
+
+    else if (t < T3)
+        return target_speed - decel*(t-T2);
+
+    else
+        return 0;
+}
+
+//
+////Control Distancia
+//float A1 = (target_speed*T1)/2;
+//float A2 = (target_speed*(T2-T1));
+//float A3 = (target_speed*T1)/2;
+
+
+//Dado que la aceleración se mantiene constante (y es predefinida por nosotros) la distancia por la rampa de subida....
+//.... y la rampa de bajada se mantienen igual, por lo que el unico parámetro para definir la distancia que recorrerá el carrito será el tiempo entre...
+//aceleración y desaceleración, es decir, donde la velocidad se encuentra constante. Aqui se define a este periodo como T2-T1. Dado que T1 es constante...
+//T2 y Velocidad definen la distancia.
 
 float distance_M1;
 float distance_M2;
+
+
+
 
 void delay (uint16_t time)
 {
@@ -203,11 +251,11 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim1);
 
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
 
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_3);
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1);
 
   /* USER CODE END 2 */
 
@@ -221,23 +269,45 @@ int main(void)
 	  HAL_Delay(200);
 
   	  distance_M1 = (position_M1/ratio)* 3.14*0.087;
-  	  distance_M2 = (position_M1/ratio)* 3.14*0.087;
+  	  distance_M2 = (position_M2/ratio)* 3.14*0.087;
 
   	  angular_velocity_M1 =  (delta_M1/(20.1*12))/(0.01/60);
+  	  angular_velocity_M2 =  (delta_M2/(20.1*12))/(0.01/60);
 
-  	  if (distance_M1 > target)
-  	  {
-  		  CH1_DC = 0;
-  	  }
-  	  else
-  	  {
-  		  CH1_DC = 9000;
-  	  }
+  	  //Outer Loop
+  	  float pos_error = target_distance - distance_M1;
+  	  float vel_from_PID = PID_Position(pos_error);
 
-  	  if (Distance < 20)
-  	  {
-  		  CH1_DC = 0;
-  	  }
+  	  //Inner Loop
+  	  float vel_error = vel_sp - angular_velocity_M1;
+  	  float pwm_cmd = PID_Velocity(vel_error);
+
+  	// 2. Motion profile
+  	  float vel_profile = MotionProfile_getVelocity(t);
+
+  	    // 3. Position PID
+  	  float pos_error = target_distance - distance_M1;
+  	  float vel_posPID = PID_Position(pos_error);
+
+  	    // 4. Final velocity setpoint
+  	  float vel_sp = fmin(vel_profile, vel_posPID);
+
+  	    // 5. Velocity PID
+  	   float vel_error = vel_sp - angular_velocity_M1;
+  	   float pwm = PID_Velocity(vel_error);
+//  	  if (distance_M1 > target_distance)
+//  	  {
+//  		  CH1_DC = 0;
+//  	  }
+//  	  else
+//  	  {
+//  		  CH1_DC = 9000;
+//  	  }
+//
+//  	  if (Distance < 20)
+//  	  {
+//  		  CH1_DC = 0;
+//  	  }
 
     /* USER CODE END WHILE */
 
@@ -245,7 +315,7 @@ int main(void)
   	  //hello Justino :)
   	  TIM3 -> CCR1 = CH1_DC;
   	  TIM3 -> CCR2 = CH1_DC;
-  	  TIM2 -> CCR3 = ackerman;
+  	  TIM2 -> CCR1 = ackerman;
 
   }
   /* USER CODE END 3 */
@@ -735,8 +805,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 		last_position_M1 = position_M1;
 
-		delta_M2 = (last_position_M1 - position_M1);
-		angular_velocity_M1 =  ( (delta_M2/ratio) /d_time);
+		delta_M2 = (-last_position_M2 + position_M2);
+		angular_velocity_M2 =  ( (delta_M2/ratio) /d_time);
 		last_position_M2 = position_M2;
 	}
 }
