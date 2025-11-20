@@ -99,22 +99,10 @@ float target_distance = 1;  //m
 float target_speed = 0.17;  //m/s
 float accel = 0.1;
 float deccel = 0.1;
-
-
-float T1 = target_speed/accel; //s
-float T2 = Tt - deccel;
-float T3 = Tt;
-
-
-float d_accel = 0.5*accel*T1^2;
-float d_decel = 0.5*max_speed^2/deccel;
-
-float d_ramps = d_accel + d_decel;
-
-
-float d_const = target_distance - d_ramps;
-float T_const = d_const / max_speed;
-
+float T1 = 0;
+float T2 = 0;
+float T3 = 0;
+float t = 0;
 
 float MotionProfile_getVelocity(float t)
 {
@@ -125,11 +113,85 @@ float MotionProfile_getVelocity(float t)
         return target_speed;
 
     else if (t < T3)
-        return target_speed - decel*(t-T2);
+        return target_speed - deccel*(t-T2);
 
     else
         return 0;
 }
+
+float PID_Velocity(float error)
+{
+    static float integral = 0;
+    static float last_error = 0;
+
+    // Tunable gains (good starting values)
+    const float Kp = 3000.0;
+    const float Ki = 400.0;
+    const float Kd = 0.0;
+
+    // Anti-windup limits
+    const float INTEGRAL_MAX = 2000.0;
+    const float INTEGRAL_MIN = -2000.0;
+
+    // Derivative & integral
+    integral += error * d_time;
+
+    // Clamp integral (anti-windup)
+    if (integral > INTEGRAL_MAX) integral = INTEGRAL_MAX;
+    if (integral < INTEGRAL_MIN) integral = INTEGRAL_MIN;
+
+    float derivative = (error - last_error) / d_time;
+
+    last_error = error;
+
+    // PID output
+    float output = (Kp * error) + (Ki * integral) + (Kd * derivative);
+
+    return output;   // (will later be clamped to PWM limits)
+}
+
+float PID_Position(float error)
+{
+    static float integral = 0;
+    static float last_error = 0;
+
+    // Soft gains — position loop must be gentle
+    const float Kp = 1.5;
+    const float Ki = 0.0;
+    const float Kd = 0.0;
+
+    // Integral limits (small)
+    const float INTEGRAL_MAX = 0.5;
+    const float INTEGRAL_MIN = -0.5;
+
+    // Integral term
+    integral += error * d_time;
+
+    if (integral > INTEGRAL_MAX) integral = INTEGRAL_MAX;
+    if (integral < INTEGRAL_MIN) integral = INTEGRAL_MIN;
+
+    float derivative = (error - last_error) / d_time;
+
+    last_error = error;
+
+    // Output is desired velocity (m/s)
+    float output = (Kp * error) + (Ki * integral) + (Kd * derivative);
+
+    return output;
+}
+
+float clamp(float value, float min_val, float max_val)
+{
+    if (value < min_val) return min_val;
+    if (value > max_val) return max_val;
+    return value;
+}
+
+float fmin(float a, float b)
+{
+    return (a < b) ? a : b;
+}
+
 
 //
 ////Control Distancia
@@ -257,6 +319,22 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1);
 
+  float Tt = target_distance/target_speed;
+
+
+  T1 = target_speed/accel; //s
+  T2 = Tt - target_speed/deccel;
+  T3 = Tt;
+
+
+  float d_accel = 0.5*accel*T1*T1;
+  float d_decel = 0.5*target_speed*target_speed/deccel;
+
+  float d_ramps = d_accel + d_decel;
+
+
+  float d_const = target_distance - d_ramps;
+  float T_const = d_const / target_speed;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -274,14 +352,6 @@ int main(void)
   	  angular_velocity_M1 =  (delta_M1/(20.1*12))/(0.01/60);
   	  angular_velocity_M2 =  (delta_M2/(20.1*12))/(0.01/60);
 
-  	  //Outer Loop
-  	  float pos_error = target_distance - distance_M1;
-  	  float vel_from_PID = PID_Position(pos_error);
-
-  	  //Inner Loop
-  	  float vel_error = vel_sp - angular_velocity_M1;
-  	  float pwm_cmd = PID_Velocity(vel_error);
-
   	// 2. Motion profile
   	  float vel_profile = MotionProfile_getVelocity(t);
 
@@ -295,6 +365,17 @@ int main(void)
   	    // 5. Velocity PID
   	   float vel_error = vel_sp - angular_velocity_M1;
   	   float pwm = PID_Velocity(vel_error);
+
+  	   // Obstacle stop
+  	    if (Distance < 20)
+  	        pwm = 0;
+
+  	    // 6. Output
+  	    TIM3->CCR1 = clamp(pwm, 0, 35999);
+  	    TIM3->CCR2 = clamp(pwm, 0, 35999);
+
+  	    // 7. Update time
+  	    t += d_time;
 //  	  if (distance_M1 > target_distance)
 //  	  {
 //  		  CH1_DC = 0;
@@ -313,8 +394,8 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
   	  //hello Justino :)
-  	  TIM3 -> CCR1 = CH1_DC;
-  	  TIM3 -> CCR2 = CH1_DC;
+//  	  TIM3 -> CCR1 = CH1_DC;
+//  	  TIM3 -> CCR2 = CH1_DC;
   	  TIM2 -> CCR1 = ackerman;
 
   }
