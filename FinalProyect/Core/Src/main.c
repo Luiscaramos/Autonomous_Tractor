@@ -21,8 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdbool.h>
-#include <stdio.h>
+#include "stdbool.h"
+#include "stdio.h"
+//#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,7 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define BNO055_ADDR (0x28 << 1)   // Dirección I2C del BNO055 para HAL
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -42,6 +43,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+
+I2C_HandleTypeDef hi2c1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
@@ -63,6 +66,7 @@ static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 
 void Direction(bool drive);
@@ -87,6 +91,8 @@ int ackerman = 2800;
 //2000 = recto
 //3000 = izquierda
 
+void BNO055_Write(uint8_t reg, uint8_t value);
+uint8_t BNO055_Read(uint8_t reg);
 
 
 float d_time = 0.1;
@@ -100,6 +106,15 @@ float target = 5;
 
 float distance_M1;
 float distance_M2;
+
+//int16_t heading;
+//int16_t roll;
+//int16_t pitch;
+
+float head = 0;
+float r = 0;
+float p = 0;
+
 
 void delay (uint16_t time)
 {
@@ -200,6 +215,7 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM2_Init();
   MX_TIM4_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim1);
 
@@ -213,39 +229,77 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  // Leer ID para verificar sensor
+  uint8_t id = BNO055_Read(0x00);
+
+  if(id != 0xA0) {
+      // ERROR: Sensor no detectado
+      while(1);
+  }
+
+  // Cambiar a CONFIG MODE
+  BNO055_Write(0x3D, 0x00);
+  HAL_Delay(25);
+
+  // Cambiar a NDOF (9DOF fusion)
+  BNO055_Write(0x3D, 0x0C);
+  HAL_Delay(20);
+
+
   Direction(0);
 
   while (1)
     {
-	  HCSR04_Read();
-	  HAL_Delay(200);
+//	  HCSR04_Read();
+//	  HAL_Delay(200);
 
-  	  distance_M1 = (position_M1/ratio)* 3.14*0.087;
-  	  distance_M2 = (position_M1/ratio)* 3.14*0.087;
-
-  	  angular_velocity_M1 =  (delta_M1/(20.1*12))/(0.01/60);
-
-  	  if (distance_M1 > target)
-  	  {
-  		  CH1_DC = 0;
-  	  }
-  	  else
-  	  {
-  		  CH1_DC = 9000;
-  	  }
-
-  	  if (Distance < 20)
-  	  {
-  		  CH1_DC = 0;
-  	  }
+//  	  distance_M1 = (position_M1/ratio)* 3.14*0.087;
+//  	  distance_M2 = (position_M1/ratio)* 3.14*0.087;
+//
+//  	  angular_velocity_M1 =  (delta_M1/(20.1*12))/(0.01/60);
+//
+//  	  if (distance_M1 > target)
+//  	  {
+//  		  CH1_DC = 0;
+//  	  }
+//  	  else
+//  	  {
+//  		  CH1_DC = 9000;
+//  	  }
+//
+//  	  if (Distance < 20)
+//  	  {
+//  		  CH1_DC = 0;
+//  	  }
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   	  //hello Justino :)
-  	  TIM3 -> CCR1 = CH1_DC;
-  	  TIM3 -> CCR2 = CH1_DC;
-  	  TIM2 -> CCR3 = ackerman;
+
+      uint8_t data[6];
+      HAL_I2C_Mem_Read(&hi2c1, BNO055_ADDR, 0x1A, 1, data, 6, 100);
+
+      int16_t heading = (data[1] << 8) | data[0];
+      int16_t roll    = (data[3] << 8) | data[2];
+      int16_t pitch   = (data[5] << 8) | data[4];
+
+      h = heading / 16.0f;
+      r = roll    / 16.0f;
+      p = pitch   / 16.0f;
+
+      // Imprimir por UART
+      char msg[50];
+      sprintf(msg, "H: %.2f R: %.2f P: %.2f\r\n", h, r, p);
+      HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
+
+
+      HAL_Delay(100);
+
+//  	  TIM3 -> CCR1 = CH1_DC;
+//  	  TIM3 -> CCR2 = CH1_DC;
+//  	  TIM2 -> CCR3 = ackerman;
 
   }
   /* USER CODE END 3 */
@@ -341,6 +395,40 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
 
 }
 
@@ -692,8 +780,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(M2_ENC_B_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB10 PB11 PB8 PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_8|GPIO_PIN_9;
+  /*Configure GPIO pins : PB10 PB11 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -704,9 +792,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure peripheral I/O remapping */
-  __HAL_AFIO_REMAP_I2C1_ENABLE();
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
@@ -724,6 +809,18 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void BNO055_Write(uint8_t reg, uint8_t value)
+{
+    HAL_I2C_Mem_Write(&hi2c1, BNO055_ADDR, reg, 1, &value, 1, 100);
+}
+
+uint8_t BNO055_Read(uint8_t reg)
+{
+    uint8_t value;
+    HAL_I2C_Mem_Read(&hi2c1, BNO055_ADDR, reg, 1, &value, 1, 100);
+    return value;
+}
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -794,6 +891,18 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 
  }
+
+void get_head()
+{
+	uint8_t data[6];
+	HAL_I2C_Mem_Read(&hi2c1, BNO055_ADDR, 0x1A, 1, data, 6, 100);
+
+	int16_t heading = (data[1] << 8) | data[0];
+
+	head = heading / 16.0f;
+}
+
+
 
 /* USER CODE END 4 */
 
