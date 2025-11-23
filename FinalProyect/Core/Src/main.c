@@ -98,7 +98,7 @@ long position_M2 = 0;
 long last_position_M1 = 0;
 long last_position_M2 = 0;
 
-int ackerman = 2800;
+int ackerman = 1900;
 //1000 = derecha
 //2000 = recto
 //3000 = izquierda
@@ -149,6 +149,7 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+
 
   /* USER CODE BEGIN Init */
 
@@ -210,7 +211,7 @@ int main(void)
 	  HAL_Delay(200);
 
   	  distance_M1 = (position_M1/ratio)* circunference;
-  	  distance_M2 = (position_M1/ratio)* circunference;
+  	  distance_M2 = (position_M2/ratio)* circunference;
 
   	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
   	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
@@ -224,10 +225,10 @@ int main(void)
   		  CH1_DC = 9000;
   	  }
 
-  	  if (Distance < 20)
-  	  {
-  		  CH1_DC = 0;
-  	  }
+//  	  if (Distance < 20)
+//  	  {
+//  		  CH1_DC = 0;
+//  	  }
 
     /* USER CODE END WHILE */
 
@@ -804,10 +805,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     }
     else if (GPIO_Pin == M2_ENC_A_Pin)
     {
-        if (HAL_GPIO_ReadPin(M1_ENC_B_GPIO_Port, M1_ENC_B_Pin) == GPIO_PIN_SET)
-            position_M2++;
-        else
+        if (HAL_GPIO_ReadPin(M2_ENC_B_GPIO_Port, M2_ENC_B_Pin) == GPIO_PIN_SET)
             position_M2--;
+        else
+            position_M2++;
         // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
     }
 
@@ -846,40 +847,30 @@ void delay (uint16_t time)
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
-	if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)  // if the interrupt source is channel1
-	{
-		if (Is_First_Captured==0) // if the first value is not captured
-		{
-			IC_Val1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1); // read the first value
-			Is_First_Captured = 1;  // set the first captured as true
-			// Now change the polarity to falling edge
-			__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1, TIM_INPUTCHANNELPOLARITY_FALLING);
-		}
+    if (htim->Instance == TIM4 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3)
+    {
+        if (Is_First_Captured == 0)
+        {
+            IC_Val1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
+            __HAL_TIM_SET_COUNTER(htim, 0); // reset timer HERE
+            Is_First_Captured = 1;
 
-		else if (Is_First_Captured==1)   // if the first is already captured
-		{
-			IC_Val2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);  // read second value
-			__HAL_TIM_SET_COUNTER(htim, 0);  // reset the counter
+            __HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_3, TIM_INPUTCHANNELPOLARITY_FALLING);
+        }
+        else
+        {
+            IC_Val2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
 
-			if (IC_Val2 > IC_Val1)
-			{
-				Difference = IC_Val2-IC_Val1;
-			}
+            Difference = IC_Val2;
+            Distance = Difference * 0.034 / 2;
 
-			else if (IC_Val1 > IC_Val2)
-			{
-				Difference = (0xffff - IC_Val1) + IC_Val2;
-			}
+            Is_First_Captured = 0;
 
-			Distance = Difference * .034/2;
-			Is_First_Captured = 0; // set it back to false
-
-			// set polarity to rising edge
-			__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1, TIM_INPUTCHANNELPOLARITY_RISING);
-			__HAL_TIM_DISABLE_IT(&htim4, TIM_IT_CC1);
-		}
-	}
+            __HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_3, TIM_INPUTCHANNELPOLARITY_RISING);
+        }
+    }
 }
+
 
 void HCSR04_Read (void)
 {
@@ -887,7 +878,7 @@ void HCSR04_Read (void)
 	delay(10);  // wait for 10 us
 	HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_RESET);  // pull the TRIG pin low
 
-	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC1);
+	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC3);
 }
 
 
