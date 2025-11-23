@@ -214,7 +214,7 @@ int main(void)
   	  distance_M2 = (position_M2/ratio)* circunference;
 
   	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
-  	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
+  	  angular_velocity_M2 =  (delta_M2/(ratio))/(d_time/60);
 
   	  if (distance_M1 > target)
   	  {
