@@ -94,8 +94,9 @@ int ackerman = 2800;
 
 
 
-float d_time = 0.1;
+float d_time = 0.01;
 float ratio = 12 * 20.5;
+float circunference = 3.14*0.087;
 
 
 int delta_M1;
@@ -156,12 +157,15 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+  // TIME INTERRUPT
   HAL_TIM_Base_Start_IT(&htim1);
-
+  // PMW SERVO
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
 
+  // PWM MOTORS
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+  // Signal ultrasonic
   HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_3);
 
   /* USER CODE END 2 */
@@ -175,10 +179,11 @@ int main(void)
 	  HCSR04_Read();
 	  HAL_Delay(200);
 
-  	  distance_M1 = (position_M1/ratio)* 3.14*0.087;
-  	  distance_M2 = (position_M1/ratio)* 3.14*0.087;
+  	  distance_M1 = (position_M1/ratio)* circunference;
+  	  distance_M2 = (position_M1/ratio)* circunference;
 
-  	  angular_velocity_M1 =  (delta_M1/(20.1*12))/(0.01/60);
+  	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
+  	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
 
   	  if (distance_M1 > target)
   	  {
@@ -197,7 +202,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  	  //hello Justino :)
+
   	  TIM3 -> CCR1 = CH1_DC;
   	  TIM3 -> CCR2 = CH1_DC;
   	  TIM2 -> CCR1 = ackerman;
@@ -750,12 +755,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_5);
 
 		delta_M1 = (position_M1-last_position_M1);
-
 		last_position_M1 = position_M1;
 
-		delta_M2 = (last_position_M1 - position_M1);
-		angular_velocity_M1 =  ( (delta_M2/ratio) /d_time);
+		delta_M2 = (last_position_M2 - position_M2);
 		last_position_M2 = position_M2;
+
+		//angular_velocity_M1 =  ( (delta_M1/ratio) /d_time);
+		//angular_velocity_M2 =  ( (delta_M2/ratio) /d_time);
+
 	}
 }
 
