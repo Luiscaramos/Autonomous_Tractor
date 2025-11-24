@@ -65,6 +65,9 @@ static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
+float PID_Postion(float, float);
+float PID_Velocity(float, float);
+
 /* USER CODE BEGIN PFP */
 
 void Direction(bool drive);
@@ -802,6 +805,71 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
         }
     }
 }
+
+float PID_Position(float setpoint, float error)
+{
+    static float integral = 0;
+    static float last_error = 0;
+
+    /* Outer-loop gains must be small */
+    const float Kp = 2.0f;
+    const float Ki = 0.0f;
+    const float Kd = 0.0f;
+
+    /* Anti-windup */
+    const float INTEGRAL_MAX = 500.0f;
+    const float INTEGRAL_MIN = -500.0f;
+
+    integral += error * d_time;
+
+    if (integral > INTEGRAL_MAX) integral = INTEGRAL_MAX;
+    if (integral < INTEGRAL_MIN) integral = INTEGRAL_MIN;
+
+    float derivative = (error - last_error) / d_time;
+    last_error = error;
+
+    float output =
+            (Kp * error) +
+            (Ki * integral) +
+            (Kd * derivative);
+
+    return output;   // This becomes a velocity setpoint
+}
+
+float PID_Velocity(float setpoint, float error)
+{
+    static float integral = 0;
+    static float last_error = 0;
+
+    /* Tunable gains */
+    const float Kp = 3000.0f;
+    const float Ki = 400.0f;
+    const float Kd = 0.0f;
+
+    /* Anti-windup limits */
+    const float INTEGRAL_MAX = 2000.0f;
+    const float INTEGRAL_MIN = -2000.0f;
+
+    /* Integral accumulation */
+    integral += error * d_time;
+
+    /* Apply anti-windup */
+    if (integral > INTEGRAL_MAX) integral = INTEGRAL_MAX;
+    if (integral < INTEGRAL_MIN) integral = INTEGRAL_MIN;
+
+    /* Derivative term */
+    float derivative = (error - last_error) / d_time;
+    last_error = error;
+
+    /* Compute PID output */
+    float output =
+            (Kp * error) +
+            (Ki * integral) +
+            (Kd * derivative);
+
+    return output;
+}
+
 
 
 void HCSR04_Read (void)
