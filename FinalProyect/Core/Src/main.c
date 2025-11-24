@@ -150,7 +150,6 @@ int main(void)
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
@@ -225,10 +224,10 @@ int main(void)
   		  CH1_DC = 9000;
   	  }
 
-//  	  if (Distance < 20)
-//  	  {
-//  		  CH1_DC = 0;
-//  	  }
+  	  if (Distance < 20)
+  	  {
+  		  CH1_DC = 0;
+  	  }
 
     /* USER CODE END WHILE */
 
@@ -723,12 +722,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(M2_ENC_B_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PB10 PB11 */
-  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : M2_Direction_1_Pin M2_Direction_2_Pin */
   GPIO_InitStruct.Pin = M2_Direction_1_Pin|M2_Direction_2_Pin;
