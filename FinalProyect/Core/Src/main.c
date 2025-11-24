@@ -758,7 +758,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		delta_M1 = (position_M1-last_position_M1);
 		last_position_M1 = position_M1;
 
-		delta_M2 = (last_position_M2 - position_M2);
+		delta_M2 = (-last_position_M2 + position_M2);
 		last_position_M2 = position_M2;
 
 		//angular_velocity_M1 =  ( (delta_M1/ratio) /d_time);
