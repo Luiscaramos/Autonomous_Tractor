@@ -167,7 +167,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   // Signal ultrasonic
-  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_3);
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1);
 
   /* USER CODE END 2 */
 
@@ -779,26 +779,26 @@ void delay (uint16_t time)
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim->Instance == TIM4 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3)
+    if (htim->Instance == TIM4 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
     {
         if (Is_First_Captured == 0)
         {
-            IC_Val1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
+            IC_Val1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
             __HAL_TIM_SET_COUNTER(htim, 0); // reset timer HERE
             Is_First_Captured = 1;
 
-            __HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_3, TIM_INPUTCHANNELPOLARITY_FALLING);
+            __HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1, TIM_INPUTCHANNELPOLARITY_FALLING);
         }
         else
         {
-            IC_Val2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
+            IC_Val2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
 
             Difference = IC_Val2;
             Distance = Difference * 0.034 / 2;
 
             Is_First_Captured = 0;
 
-            __HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_3, TIM_INPUTCHANNELPOLARITY_RISING);
+            __HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1, TIM_INPUTCHANNELPOLARITY_RISING);
         }
     }
 }
@@ -810,7 +810,7 @@ void HCSR04_Read (void)
 	delay(10);  // wait for 10 us
 	HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_RESET);  // pull the TRIG pin low
 
-	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC3);
+	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC1);
 }
 
 
