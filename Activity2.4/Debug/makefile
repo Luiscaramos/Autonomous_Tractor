@@ -60,8 +60,8 @@ all: main-build
 main-build: Activity2.4.elf secondary-outputs
 
 # Tool invocations
-Activity2.4.elf Activity2.4.map: $(OBJS) $(USER_OBJS) C:\ST\STM32CubeIDE_1.19.0\STM32CubeIDE\Autonomous_Tractor\Activity2.4\STM32F103RBTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "Activity2.4.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\ST\STM32CubeIDE_1.19.0\STM32CubeIDE\Autonomous_Tractor\Activity2.4\STM32F103RBTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Activity2.4.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Activity2.4.elf Activity2.4.map: $(OBJS) $(USER_OBJS) C:\Users\justi\git\Autonomous_Tractor\Activity2.4\STM32F103RBTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Activity2.4.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\justi\git\Autonomous_Tractor\Activity2.4\STM32F103RBTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Activity2.4.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
