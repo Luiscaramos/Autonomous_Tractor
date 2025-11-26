@@ -196,17 +196,10 @@ int main(void)
 
   if(id != 0xA0) {
       // ERROR: Sensor no detectado
-      while(1){
-    	  char msg[50];
-          sprintf(msg, "Hello World \r\n");
-          HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
-
-          //char msg[50];
-          //sprintf(msg, "Hello World \r\n");
-          HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
-
-
-      }
+	  char msg[50];
+      sprintf(msg, "Error en la conexion del BN0 \r\n");
+      HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
+      while(1);
   }
 
   // Cambiar a CONFIG MODE
