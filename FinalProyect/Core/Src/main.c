@@ -65,9 +65,6 @@ static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
-float PID_Position(float, float);
-float PID_Velocity(float, float);
-
 /* USER CODE BEGIN PFP */
 
 void Direction(bool drive);
@@ -136,10 +133,10 @@ float distance_M2;
    float duty2 = 0.0f;
 
 
-   float factor = 0.0f;
+   float factor = 40.0f;
 
    float time_ctl = 0.0f;
-   int state = 1;
+   int state = 0;
 
    float Kpp1 = 1.0f;
    float Kpp2 = 1.0f;
@@ -171,10 +168,6 @@ uint32_t Distance  = 0;
 int main(void)
 {
 
-//	   t1 = accel; // aceleration time = 2 seconds
-//	   t2 = T-deccel; // starting deceleration slope
-
-
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -183,7 +176,6 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
 
   /* USER CODE BEGIN Init */
 
@@ -231,23 +223,23 @@ int main(void)
   	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
   	  angular_velocity_M2 =  (delta_M2/(ratio))/(d_time/60);
 
-//  	  if (distance_M1 > target)
+//  	  if (distance_m1 > target)
 //  	  {
-//  		  CH1_DC = 0;
+//  		  ch1_dc = 0;
 //  	  }
 //  	  else
 //  	  {
 //  		  CH1_DC = 9000;
 //  	  }
 //
-////  	  if (Distance < 20)
-////  	  {
-////  		  CH1_DC = 0;
-////  	  }
-//
-//    /* USER CODE END WHILE */
-//
-//    /* USER CODE BEGIN 3 */
+//  	  if (Distance < 20)
+//  	  {
+//  		  CH1_DC = 0;
+//  	  }
+
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
 //
 //  	  TIM3 -> CCR1 = CH1_DC;
 //  	  TIM3 -> CCR2 = CH1_DC;
@@ -371,9 +363,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 8000;
+  htim1.Init.Prescaler = 7200;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 100-1;
+  htim1.Init.Period = 1000-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -386,7 +378,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_Base_Start_IT(&htim1) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -820,7 +812,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
         if (state != 0)
         {
-        	time_ctl += (100)*(8000)/72000000.0f;
+        	time_ctl += 0.1f;
 
             switch (state)
             {
@@ -868,22 +860,29 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 
             // PID outputs
-            Corrected_Vel_M1 = Error_Vel_M1*Kpv1 + Corrected_Pos_M1;
-            Corrected_Vel_M2 = Error_Vel_M2*Kpv2 + Corrected_Pos_M2;
+            Corrected_Vel_M1 = Error_Vel_M1*Kpv1;
+            Corrected_Vel_M2 = Error_Vel_M2*Kpv2;
 
             // Convert to PWM
             duty1 = Corrected_Vel_M1 * factor;
             duty2 = Corrected_Vel_M2 * factor;
+
+            //Clamping
+            if (Corrected_Vel_M1>100.0) Corrected_Vel_M1 =100.0;
+            if (Corrected_Vel_M1<-100.0) Corrected_Vel_M1 =-100.0;
+
+            if (Corrected_Vel_M2>100.0) Corrected_Vel_M2 =100.0;
+            if (Corrected_Vel_M2<-100.0) Corrected_Vel_M2 =-100.0;
 
             // Apply PWM — each motor independent
             TIM1->CCR1 = duty1;  // Motor 1
             TIM1->CCR2 = duty2;  // Motor 2
 
             // Directions
-            if (duty1 < 0) Direction(1);
+            if (duty1 > 0) Direction(1);
             else Direction(0);
 
-            if (duty2 < 0) Direction(1);
+            if (duty2 > 0) Direction(1);
             else Direction(0);
         }
     }
@@ -1013,7 +1012,6 @@ void Error_Handler(void)
 }
 
   /* USER CODE END Error_Handler_Debug */
-
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
