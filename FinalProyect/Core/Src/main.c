@@ -55,6 +55,7 @@ TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart2;
+UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 
@@ -70,6 +71,7 @@ static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 void Direction(bool drive);
@@ -171,6 +173,7 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM4_Init();
   MX_I2C1_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
   // TIME INTERRUPT
   HAL_TIM_Base_Start_IT(&htim1);
@@ -194,6 +197,9 @@ int main(void)
 
   if(id != 0xA0) {
       // ERROR: Sensor no detectado
+	  char msg[50];
+      sprintf(msg, "Error en la conexion del BN0 \r\n");
+      HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
       while(1);
   }
 
@@ -243,7 +249,7 @@ int main(void)
       // Imprimir por UART
       char msg[50];
       sprintf(msg, "H: %.2f \r\n", head);
-      HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
+      HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
 
   }
   /* USER CODE END 3 */
@@ -666,6 +672,39 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 57600;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
 
 }
 
