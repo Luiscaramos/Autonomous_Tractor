@@ -125,7 +125,6 @@ float distance_M2;
 
 float head;
 
-float head;
 
 // Setup of variables
    float Vn = 30.0f; // 30 cm/s
@@ -263,8 +262,7 @@ int main(void)
   	  distance_M1 = (position_M1/ratio)* circunference;
   	  distance_M2 = (position_M2/ratio)* circunference;
 
-  	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
-  	  angular_velocity_M2 =  (delta_M2/(ratio))/(d_time/60);
+
 
 //  	  if (distance_m1 > target)
 //  	  {
@@ -994,6 +992,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
             if (duty2 < 0) Direction(1);
             else Direction(0);
+
+            sprintf(msg, "%.2f %.2f\r\n", angular_velocity_M1, angular_velocity_M2);
         }
     }
 }
