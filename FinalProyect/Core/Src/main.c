@@ -214,7 +214,7 @@ int main(void)
       // ERROR: Sensor no detectado
 	  char msg[50];
       sprintf(msg, "Error en la conexion del BN0 \r\n");
-      HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
+      HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
       while(1);
   }
 
@@ -228,7 +228,15 @@ int main(void)
 
   while (1)
     {
-
+	  	if (isr_timestamp > 300000){
+	  		sprintf(msg, "S \r\n");
+	  		HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 5);
+	  	}
+	    if (send_flag)
+	    {
+	        send_flag = 0;
+	        HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 5);
+	    }
 
 
   }
@@ -867,7 +875,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         isr_timestamp = HAL_GetTick();
 
         // --- 3. Prepare UART data (do NOT send here) ---
-        sprintf(msg, "%.2f %.2f\r\n", (float)position_M1, (float)position_M2);
+        sprintf(msg, "%lu %ld %ld %d %d\r\n",
+        		isr_timestamp,
+				position_M1,
+				position_M2,
+				CH1_DC,
+				CH2_DC);
 
         // --- 4. Tell main loop to send UART ---
         send_flag = 1;

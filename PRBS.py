@@ -2,11 +2,12 @@ import serial
 import csv
 import time
 
-PORT = "COM5"      # Change to your serial port
-BAUD = 115200
+PORT = "COM4"      # Change to your serial port
+BAUD = 57600
 CSV_FILENAME = "motor_prbs_log.csv"
 
 def main():
+
     try:
         ser = serial.Serial(PORT, BAUD, timeout=0.5)
         print(f"Connected to {PORT}")
@@ -19,32 +20,43 @@ def main():
     writer = csv.writer(csv_file)
 
     # CSV header
-    writer.writerow(["mcu_time_ms", "position_M1", "position_M2"])
+    writer.writerow(["mcu_time_ms", "posM1", "posM2", "CH1_DC", "CH2_DC"])
 
     print("Logging started… CTRL+C to stop.")
 
     try:
         while True:
+
             if ser.in_waiting:
                 line = ser.readline().decode(errors="ignore").strip()
+                if not line:
+                    continue
 
-                # Expect:  "1234 15.3 17.8"
+                # -------- STOP SIGNAL FROM STM32 --------
+                if line == "S":
+                    print("Stop signal received from STM32. Ending capture.")
+                    break
+
                 parts = line.split()
-                if len(parts) != 3:
+                # Expecting 5 fields: time pos1 pos2 CH1 CH2
+                if len(parts) != 5:
                     continue
 
                 try:
-                    t_mcu  = int(parts[0])
-                    pos1   = float(parts[1])
-                    pos2   = float(parts[2])
+                    time_ms = int(parts[0])
+                    posM1   = int(parts[1])
+                    posM2   = int(parts[2])
+                    ch1     = int(parts[3])
+                    ch2     = int(parts[4])
+
                 except ValueError:
                     continue
 
-                writer.writerow([t_mcu, pos1, pos2])
-                print(t_mcu, pos1, pos2)
+                writer.writerow([time_ms, posM1, posM2, ch1, ch2])
+                #print(time_ms, posM1, posM2, ch1, ch2)
 
     except KeyboardInterrupt:
-        print("\nStopped.")
+        print("\nStopped by user.")
 
     finally:
         ser.close()
