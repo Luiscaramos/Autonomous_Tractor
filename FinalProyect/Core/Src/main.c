@@ -72,6 +72,9 @@ static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART3_UART_Init(void);
+float PID_Position(float, float);
+float PID_Velocity(float, float);
+
 /* USER CODE BEGIN PFP */
 
 void Direction(bool drive);
@@ -122,6 +125,48 @@ float distance_M2;
 
 float head;
 
+float head;
+
+// Setup of variables
+   float Vn = 30.0f; // 30 cm/s
+   float accel = 2.0f;
+   float deccel = 2.0f;
+   float t1 = 2.0f; // aceleration time = 2 seconds
+   float t2 = 8.0f; // starting deceleration slope
+   float T = 10.0f; // finishing movement
+   // deceleration time = 2 seconds
+   float SP_Pos = 0.0f;
+   float SP_Vel = 0.0f;
+
+   float Error_Pos_M1 = 0.0f;
+   float Error_Vel_M1 = 0.0f;
+   float Error_Pos_M2 = 0.0f;
+   float Error_Vel_M2 = 0.0f;
+
+   float Corrected_Pos_M1 = 0.0f;
+   float Corrected_Vel_M1 = 0.0f;
+
+   float Corrected_Pos_M2 = 0.0f;
+   float Corrected_Vel_M2 = 0.0f;
+
+   float duty1 = 0.0f;
+   float duty2 = 0.0f;
+
+
+   float factor = 0.0f;
+
+   float time_ctl = 0.0f;
+   int state = 1;
+
+   float Kpp1 = 1.0f;
+   float Kpp2 = 1.0f;
+   float Kip1 = 0.0f;
+   float Kip2 = 0.0f;
+   float Kpv1 = 1.0f;
+   float Kpv2 = 1.0f;
+
+   float ErrorAcumPos_M1 = 0.0f;
+   float ErrorAcumPos_M2 = 0.0f;
 
 
 uint32_t IC_Val1 = 0;
@@ -142,6 +187,10 @@ uint32_t Distance  = 0;
   */
 int main(void)
 {
+
+//	   t1 = accel; // aceleration time = 2 seconds
+//	   t2 = T-deccel; // starting deceleration slope
+
 
   /* USER CODE BEGIN 1 */
 
@@ -214,35 +263,34 @@ int main(void)
   while (1)
     {
 	  HCSR04_Read();
-	  HAL_Delay(200);
-
+//
   	  distance_M1 = (position_M1/ratio)* circunference;
   	  distance_M2 = (position_M2/ratio)* circunference;
 
   	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
   	  angular_velocity_M2 =  (delta_M2/(ratio))/(d_time/60);
 
-  	  if (distance_M1 > target)
-  	  {
-  		  CH1_DC = 0;
-  	  }
-  	  else
-  	  {
-  		  CH1_DC = 9000;
-  	  }
-
-//  	  if (Distance < 20)
+//  	  if (distance_M1 > target)
 //  	  {
 //  		  CH1_DC = 0;
 //  	  }
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-  	get_head();
-  	  TIM3 -> CCR1 = CH1_DC;
-  	  TIM3 -> CCR2 = CH1_DC;
-  	  TIM2 -> CCR1 = ackerman;
+//  	  else
+//  	  {
+//  		  CH1_DC = 9000;
+//  	  }
+//
+////  	  if (Distance < 20)
+////  	  {
+////  		  CH1_DC = 0;
+////  	  }
+//
+//    /* USER CODE END WHILE */
+//
+//    /* USER CODE BEGIN 3 */
+//
+//  	  TIM3 -> CCR1 = CH1_DC;
+//  	  TIM3 -> CCR2 = CH1_DC;
+ 	  TIM2 -> CCR1 = ackerman;
 
 
 
@@ -418,7 +466,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  if (HAL_TIM_Base_Start_IT(&htim1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -815,7 +863,18 @@ void Direction(bool drive)
 //____________________________________________________
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  {
-    static uint32_t last_press = 0;
+    // Setup of variables
+       Vn = 30.0f; // 30 cm/s
+       t1 = 2.0f; // aceleration time = 2 seconds
+       t2 = 8.0f; // starting deceleration slope
+       T = 10.0f; // finishing movement
+       // deceleration time = 2 seconds
+       SP_Pos = 0.0f;
+       time_ctl = 0.0f;
+       state = 1;
+       HAL_TIM_Base_Start_IT(&htim1);
+
+	static uint32_t last_press = 0;
 
     if (GPIO_Pin == GPIO_PIN_13)
     {
@@ -844,35 +903,94 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             position_M2++;
         // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
     }
-
-
  }
-
 // -------------------------------------------------------------------
 // Time interrupts
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	if (htim->Instance == TIM1)
-	{
-		HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_5);
+    if (htim->Instance == TIM1)
+    {
+        HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
 
-		delta_M1 = (position_M1-last_position_M1);
-		last_position_M1 = position_M1;
+        // Motor 1
+        delta_M1 = position_M1 - last_position_M1;
+        angular_velocity_M1 = (delta_M1 / ratio) / d_time;
+        last_position_M1 = position_M1;
 
 		delta_M2 = (-last_position_M2 + position_M2);
 		last_position_M2 = position_M2;
 
-		//angular_velocity_M1 =  ( (delta_M1/ratio) /d_time);
-		//angular_velocity_M2 =  ( (delta_M2/ratio) /d_time);
+        if (state != 0)
+        {
+        	time_ctl += (100)*(8000)/72000000.0f;
 
-	}
+            switch (state)
+            {
+                case 1: // Accel
+                    SP_Vel = (time_ctl / t1) * Vn;
+                    SP_Pos = time_ctl * SP_Vel * 0.5f;
+                    if (time_ctl >= t1) state = 2;
+                break;
+
+                case 2: // Cruise
+                    SP_Vel = Vn;
+                    SP_Pos = (t1 * Vn * 0.5f) + SP_Vel * (time_ctl - t1);
+                    if (time_ctl >= t2) state = 3;
+                break;
+
+                case 3: // Deccel
+                    SP_Vel = Vn * (T - time_ctl) / (T - t2);
+                    SP_Pos =
+                        (t1 * Vn * 0.5f) +
+                        Vn * (t2 - t1) +
+                        (Vn + SP_Vel) * (time_ctl - t2) * 0.5f;
+
+                    if (time_ctl >= T)
+                    {
+                        state = 0;
+                        HAL_TIM_Base_Stop_IT(&htim1);
+                    }
+                break;
+            }
+
+            // Motor 1 errors
+            Error_Pos_M1 = SP_Pos - position_M1;
+            Error_Vel_M1 = SP_Vel - angular_velocity_M1;
+
+            // Motor 2 errors
+            Error_Pos_M2 = SP_Pos - position_M2;
+            Error_Vel_M2 = SP_Vel - angular_velocity_M2;
+
+            ErrorAcumPos_M1 += Error_Pos_M1;
+            ErrorAcumPos_M2 += Error_Pos_M2;
+
+            //Position PID
+            Corrected_Pos_M1 = Error_Pos_M1*Kpp1 + ErrorAcumPos_M1*Kip1;
+            Corrected_Pos_M2 = Error_Pos_M2*Kpp2 + ErrorAcumPos_M1*Kip2;
+
+
+            // PID outputs
+            Corrected_Vel_M1 = Error_Vel_M1*Kpv1 + Corrected_Pos_M1;
+            Corrected_Vel_M2 = Error_Vel_M2*Kpv2 + Corrected_Pos_M2;
+
+            // Convert to PWM
+            duty1 = Corrected_Vel_M1 * factor;
+            duty2 = Corrected_Vel_M2 * factor;
+
+            // Apply PWM — each motor independent
+            TIM1->CCR1 = duty1;  // Motor 1
+            TIM1->CCR2 = duty2;  // Motor 2
+
+            // Directions
+            if (duty1 < 0) Direction(1);
+            else Direction(0);
+
+            if (duty2 < 0) Direction(1);
+            else Direction(0);
+        }
+    }
 }
 
-void delay (uint16_t time)
-{
-	__HAL_TIM_SET_COUNTER(&htim4, 0);
-	while(__HAL_TIM_GET_COUNTER(&htim4) < time);
-}
 
 //------------------------------------------------------------
 // Ultrasonic sensor code
@@ -904,11 +1022,76 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
     }
 }
 
+float PID_Position(float setpoint, float error)
+{
+    static float integral = 0;
+    static float last_error = 0;
+
+    /* Outer-loop gains must be small */
+    const float Kp = 2.0f;
+    const float Ki = 0.0f;
+    const float Kd = 0.0f;
+
+    /* Anti-windup */
+    const float INTEGRAL_MAX = 500.0f;
+    const float INTEGRAL_MIN = -500.0f;
+
+    integral += error * d_time;
+
+    if (integral > INTEGRAL_MAX) integral = INTEGRAL_MAX;
+    if (integral < INTEGRAL_MIN) integral = INTEGRAL_MIN;
+
+    float derivative = (error - last_error) / d_time;
+    last_error = error;
+
+    float output =
+            (Kp * error) +
+            (Ki * integral) +
+            (Kd * derivative);
+
+    return output;   // This becomes a velocity setpoint
+}
+
+float PID_Velocity(float setpoint, float error)
+{
+    static float integral = 0;
+    static float last_error = 0;
+
+    /* Tunable gains */
+    const float Kp = 3000.0f;
+    const float Ki = 400.0f;
+    const float Kd = 0.0f;
+
+    /* Anti-windup limits */
+    const float INTEGRAL_MAX = 2000.0f;
+    const float INTEGRAL_MIN = -2000.0f;
+
+    /* Integral accumulation */
+    integral += error * d_time;
+
+    /* Apply anti-windup */
+    if (integral > INTEGRAL_MAX) integral = INTEGRAL_MAX;
+    if (integral < INTEGRAL_MIN) integral = INTEGRAL_MIN;
+
+    /* Derivative term */
+    float derivative = (error - last_error) / d_time;
+    last_error = error;
+
+    /* Compute PID output */
+    float output =
+            (Kp * error) +
+            (Ki * integral) +
+            (Kd * derivative);
+
+    return output;
+}
+
+
 
 void HCSR04_Read (void)
 {
 	HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_SET);  // pull the TRIG pin HIGH
-	delay(10);  // wait for 10 us
+	HAL_Delay(10);  // wait for 10 us
 	HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_RESET);  // pull the TRIG pin low
 
 	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC1);
@@ -955,8 +1138,10 @@ void Error_Handler(void)
   while (1)
   {
   }
-  /* USER CODE END Error_Handler_Debug */
 }
+
+  /* USER CODE END Error_Handler_Debug */
+
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
