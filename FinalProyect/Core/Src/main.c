@@ -154,7 +154,7 @@ uint32_t IC_Val2 = 0;
 uint32_t Difference = 0;
 uint8_t Is_First_Captured = 0;  // is the first value captured ?
 uint32_t Distance  = 0;
-int start = 0;
+int start = 1;
 
 
 
@@ -168,7 +168,6 @@ int start = 0;
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
