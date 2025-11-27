@@ -89,7 +89,22 @@ void get_head(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// 16-bit LFSR for PRBS
+static uint16_t lfsr = 0xACE1u;   // seed (must be non-zero)
+uint16_t prbs_value = 0;
+uint32_t isr_timestamp = 0;
+
+char msg[50];
+volatile uint8_t send_flag = 0;
+
+/* Forward declarations */
+uint16_t PRBS16(void);
+void Update_PWM_From_PRBS(uint16_t prbs);
+
 int CH1_DC = 18000;
+int CH2_DC = 18000;
+
 int POTATO = 0;
 float angular_velocity_M1;
 float angular_velocity_M2;
@@ -199,7 +214,7 @@ int main(void)
       // ERROR: Sensor no detectado
 	  char msg[50];
       sprintf(msg, "Error en la conexion del BN0 \r\n");
-      HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
+      HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
       while(1);
   }
 
@@ -213,43 +228,8 @@ int main(void)
 
   while (1)
     {
-	  HCSR04_Read();
-	  HAL_Delay(200);
-
-  	  distance_M1 = (position_M1/ratio)* circunference;
-  	  distance_M2 = (position_M2/ratio)* circunference;
-
-  	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
-  	  angular_velocity_M2 =  (delta_M2/(ratio))/(d_time/60);
-
-  	  if (distance_M1 > target)
-  	  {
-  		  CH1_DC = 0;
-  	  }
-  	  else
-  	  {
-  		  CH1_DC = 9000;
-  	  }
-
-//  	  if (Distance < 20)
-//  	  {
-//  		  CH1_DC = 0;
-//  	  }
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-  	get_head();
-  	  TIM3 -> CCR1 = CH1_DC;
-  	  TIM3 -> CCR2 = CH1_DC;
-  	  TIM2 -> CCR1 = ackerman;
 
 
-
-      // Imprimir por UART
-      char msg[50];
-      sprintf(msg, "H: %.2f \r\n", head);
-      HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
 
   }
   /* USER CODE END 3 */
@@ -847,25 +827,51 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 
  }
+//-------------------------------------------------------------------
+// PBS Functions
+//-------------------------------------------------------------------
+
+uint16_t PRBS16(void)
+{
+    uint16_t bit = ((lfsr >> 0) ^ (lfsr >> 2) ^
+                    (lfsr >> 3) ^ (lfsr >> 5)) & 1;
+
+    lfsr  = (lfsr >> 1) | (bit << 15);
+    return lfsr;
+}
+
+void Update_PWM_From_PRBS(uint16_t prbs)
+{
+    uint32_t CCR_MAX = 39999; // your ARR = 40000-1
+
+    CH1_DC = (prbs * CCR_MAX) >> 16;   // scaled PRBS (fast)
+    CH2_DC = CCR_MAX - CH1_DC;         // inverse output
+
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, CH1_DC);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, CH2_DC);
+}
 
 // -------------------------------------------------------------------
 // Time interrupts
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	if (htim->Instance == TIM1)
-	{
-		HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_5);
+    if (htim->Instance == TIM1)
+    {
+        // --- 1. Generate PRBS ---
+        prbs_value = PRBS16();
 
-		delta_M1 = (position_M1-last_position_M1);
-		last_position_M1 = position_M1;
+        // --- 2. Update PWM duty cycle ---
+        Update_PWM_From_PRBS(prbs_value);
 
-		delta_M2 = (-last_position_M2 + position_M2);
-		last_position_M2 = position_M2;
+        // Timestamp in milliseconds
+        isr_timestamp = HAL_GetTick();
 
-		//angular_velocity_M1 =  ( (delta_M1/ratio) /d_time);
-		//angular_velocity_M2 =  ( (delta_M2/ratio) /d_time);
+        // --- 3. Prepare UART data (do NOT send here) ---
+        sprintf(msg, "%.2f %.2f\r\n", (float)position_M1, (float)position_M2);
 
-	}
+        // --- 4. Tell main loop to send UART ---
+        send_flag = 1;
+    }
 }
 
 void delay (uint16_t time)
