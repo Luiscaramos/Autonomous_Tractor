@@ -132,8 +132,8 @@ float head;
    float accel = 2.0f;
    float deccel = 2.0f;
    float t1 = 2.0f; // aceleration time = 2 seconds
-   float t2 = 8.0f; // starting deceleration slope
-   float T = 10.0f; // finishing movement
+   float t2 =18.0f; // starting deceleration slope
+   float T = 20.0f; // finishing movement
    // deceleration time = 2 seconds
    float SP_Pos = 0.0f;
    float SP_Vel = 0.0f;
@@ -153,10 +153,10 @@ float head;
    float duty2 = 0.0f;
 
 
-   float factor = 0.0f;
+   float factor = 360.0f;
 
    float time_ctl = 0.0f;
-   int state = 1;
+   int state = 0;
 
    float Kpp1 = 1.0f;
    float Kpp2 = 1.0f;
@@ -174,6 +174,7 @@ uint32_t IC_Val2 = 0;
 uint32_t Difference = 0;
 uint8_t Is_First_Captured = 0;  // is the first value captured ?
 uint32_t Distance  = 0;
+int start = 0;
 
 
 
@@ -188,10 +189,6 @@ uint32_t Distance  = 0;
 int main(void)
 {
 
-//	   t1 = accel; // aceleration time = 2 seconds
-//	   t2 = T-deccel; // starting deceleration slope
-
-
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -200,7 +197,6 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
 
   /* USER CODE BEGIN Init */
 
@@ -270,27 +266,41 @@ int main(void)
   	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
   	  angular_velocity_M2 =  (delta_M2/(ratio))/(d_time/60);
 
-//  	  if (distance_M1 > target)
+//  	  if (distance_m1 > target)
 //  	  {
-//  		  CH1_DC = 0;
+//  		  ch1_dc = 0;
 //  	  }
 //  	  else
 //  	  {
 //  		  CH1_DC = 9000;
 //  	  }
 //
-////  	  if (Distance < 20)
-////  	  {
-////  		  CH1_DC = 0;
-////  	  }
-//
-//    /* USER CODE END WHILE */
-//
-//    /* USER CODE BEGIN 3 */
+//  	  if (Distance < 20)
+//  	  {
+//  		  CH1_DC = 0;
+//  	  }
+
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
 //
 //  	  TIM3 -> CCR1 = CH1_DC;
 //  	  TIM3 -> CCR2 = CH1_DC;
  	  TIM2 -> CCR1 = ackerman;
+ 	  if (start == 1)
+ 	  {
+ 		 // Setup of variables
+ 		        Vn = 30.0f; // 30 cm/s
+ 		        t1 = 2.0f; // aceleration time = 2 seconds
+ 		        t2 =18.0f; // starting deceleration slope
+ 		        T = 20.0f; // finishing movement
+ 		        // deceleration time = 2 seconds
+ 		        SP_Pos = 0.0f;
+ 		        time_ctl = 0.0f;
+ 		        state = 1;
+ 		        HAL_TIM_Base_Start_IT(&htim1);
+ 		        start = 0;
+ 	  }
 
 
 
@@ -451,9 +461,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 8000;
+  htim1.Init.Prescaler = 7200;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 100-1;
+  htim1.Init.Period = 1000-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -466,7 +476,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_Base_Start_IT(&htim1) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -863,21 +873,10 @@ void Direction(bool drive)
 //____________________________________________________
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  {
-    // Setup of variables
-       Vn = 30.0f; // 30 cm/s
-       t1 = 2.0f; // aceleration time = 2 seconds
-       t2 = 8.0f; // starting deceleration slope
-       T = 10.0f; // finishing movement
-       // deceleration time = 2 seconds
-       SP_Pos = 0.0f;
-       time_ctl = 0.0f;
-       state = 1;
-       HAL_TIM_Base_Start_IT(&htim1);
-
-	static uint32_t last_press = 0;
 
     if (GPIO_Pin == GPIO_PIN_13)
     {
+    	static uint32_t last_press = 0;
         uint32_t now = HAL_GetTick();
         if (now - last_press > 200) // 200 ms debounce
         {
@@ -922,7 +921,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
         if (state != 0)
         {
-        	time_ctl += (100)*(8000)/72000000.0f;
+        	time_ctl += 0.1f;
 
             switch (state)
             {
@@ -970,16 +969,24 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 
             // PID outputs
-            Corrected_Vel_M1 = Error_Vel_M1*Kpv1 + Corrected_Pos_M1;
-            Corrected_Vel_M2 = Error_Vel_M2*Kpv2 + Corrected_Pos_M2;
+            Corrected_Vel_M1 = Error_Vel_M1*Kpv1;
+            Corrected_Vel_M2 = Error_Vel_M2*Kpv2;
+
+            //Clamping
+            if (Corrected_Vel_M1>100.0) Corrected_Vel_M1 =100.0;
+            if (Corrected_Vel_M1<-100.0) Corrected_Vel_M1 =-100.0;
+
+            if (Corrected_Vel_M2>100.0) Corrected_Vel_M2 =100.0;
+            if (Corrected_Vel_M2<-100.0) Corrected_Vel_M2 =-100.0;
 
             // Convert to PWM
-            duty1 = Corrected_Vel_M1 * factor;
-            duty2 = Corrected_Vel_M2 * factor;
+            duty1 = SP_Vel * factor;
+            duty2 = SP_Vel * factor;
+
 
             // Apply PWM — each motor independent
-            TIM1->CCR1 = duty1;  // Motor 1
-            TIM1->CCR2 = duty2;  // Motor 2
+            TIM3->CCR1 = SP_Vel*factor;  // Motor 1
+            TIM3->CCR2 = SP_Vel*factor;  // Motor 2
 
             // Directions
             if (duty1 < 0) Direction(1);
@@ -1141,7 +1148,6 @@ void Error_Handler(void)
 }
 
   /* USER CODE END Error_Handler_Debug */
-
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
