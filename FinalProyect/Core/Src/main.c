@@ -58,9 +58,6 @@ UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
@@ -72,6 +69,9 @@ static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART3_UART_Init(void);
+/* USER CODE END PV */
+
+
 
 /* USER CODE BEGIN PFP */
 
@@ -99,7 +99,9 @@ char msg[50];
 volatile uint8_t send_flag = 0;
 uint32_t isr_timestamp = 0;
 
-
+int kp = 400;
+int ki = 0;
+int kd = 0;
 
 float velocity_M1;
 float velocity_M2;
@@ -107,8 +109,8 @@ float velocity_M2;
 long position_M1 = 0;
 long position_M2 = 0;
 
-long last_position_M1 = 0;
-long last_position_M2 = 0;
+float last_position_M1 = 0;
+float last_position_M2 = 0;
 
 
 //1000 = derecha
@@ -119,11 +121,10 @@ long last_position_M2 = 0;
 
 float d_time = 0.01;
 float ratio = 12 * 20.5;
-float circunference = 3.14*0.087;
+float circunference = 3.14*8.7;
 
-
-int delta_M1;
-int delta_M2;
+float delta_M1;
+float delta_M2;
 
 float target = 5;
 
@@ -161,7 +162,7 @@ float E_head;
    float time_ctl = 0.0f;
    int state = 1;
 
-   float turn = 90;
+   float turn = 0;
 
 
 uint32_t IC_Val1 = 0;
@@ -172,7 +173,8 @@ uint32_t Distance  = 0;
 int start = 0;
 
 
-
+float last_ctl = 0;
+float dt;
 
 
 /* USER CODE END 0 */
@@ -240,7 +242,6 @@ int main(void)
 	  char msg[128];
       sprintf(msg, "Error en la conexion del BN0 \r\n");
       HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 10);
-      while(1);
   }
 
   // Cambiar a CONFIG MODE
@@ -253,84 +254,102 @@ int main(void)
 
   while (1)
     {
+	  /* USER CODE END WHILE */
+
+	  /* USER CODE BEGIN 3 */
 //	  HCSR04_Read();
-	  get_head();
+	  //get_head();
 
 
 
     if (state != 0)
     {
 
-      switch (state)
-      {
-          case 1: // Accel
-                SP_Vel_M1 = (time_ctl / t1) * Vn;
-                SP_Vel_M2 = SP_Vel_M1;
-                SP_Pos = time_ctl * SP_Vel_M1 * 0.5f;
-                if (time_ctl >= t1) state = 2;
-              break;
 
-          case 2: // Cruise
-                SP_Vel_M1 = Vn;
-                SP_Vel_M2 = Vn;
-                SP_Pos = (t1 * Vn * 0.5f) + SP_Vel_M1 * (time_ctl - t1);
-                if (time_ctl >= t2) state = 3;
-              break;
+    	time_ctl = (float)isr_timestamp / 1000.0;
 
-          case 3: // Deccel
-                  SP_Vel_M1 = Vn * (T - time_ctl) / (T - t2);
-                  SP_Pos =
-                      (t1 * Vn * 0.5f) +
-                      Vn * (t2 - t1) +
-                      (Vn + SP_Vel_M1) * (time_ctl - t2) * 0.5f;
 
-                  if (time_ctl >= T)
-                  {
-                      state = 0;
-                      HAL_TIM_Base_Stop_IT(&htim1);
-                  }
-              break;
-          }
-    }
 
+//      switch (state)
+//      {
+//          case 1: // Accel
+//                SP_Vel_M1 = (time_ctl / t1) * Vn;
+//                SP_Vel_M2 = SP_Vel_M1;
+//                SP_Pos = time_ctl * SP_Vel_M1 * 0.5f;
+//                if (time_ctl >= t1) state = 2;
+//              break;
+//
+//          case 2: // Cruise
+//                SP_Vel_M1 = Vn;
+//                SP_Vel_M2 = Vn;
+//                SP_Pos = (t1 * Vn * 0.5f) + SP_Vel_M1 * (time_ctl - t1);
+//                if (time_ctl >= t2) state = 3;
+//              break;
+//
+//          case 3: // Deccel
+//                  SP_Vel_M1 = Vn * (T - time_ctl) / (T - t2);
+//                  SP_Pos =
+//                      (t1 * Vn * 0.5f) +
+//                      Vn * (t2 - t1) +
+//                      (Vn + SP_Vel_M1) * (time_ctl - t2) * 0.5f;
+//                  SP_Vel_M2 = SP_Vel_M1;
+//                  if (time_ctl >= T)
+//                  {
+//                	  SP_Vel_M1 = 0;
+//                	  SP_Vel_M2 = SP_Vel_M1;
+//
+//                      state = 0;
+//                      //HAL_TIM_Base_Stop_IT(&htim1);
+//                  }
+//              break;
+//          }
+   }
+
+    SP_Vel_M1 = Vn;
+    SP_Vel_M2 = Vn;
     //PID_Position(Error_Pos_M1, Error_Pos_M2);
-    //PID_Velocity(Error_Vel_M1, Error_Vel_M2);
+    PID_Velocity(Error_Vel_M1, Error_Vel_M2);
+
+
 
 
 
 	  E_head = 180 - abs(head - 180);
-	  if (head < 180){E_head*= -1;}
+	  if (head > 180){E_head*= -1;}
 
 	  //Positive is right
 	  //Negative us left
 
 	  //E_head = turn + E_head;
 
-    PID_Servo(E_head);
+      PID_Servo(E_head);
 
 
- 	  if (start == 1)
- 	  {
- 		 // Setup of variables
- 		        Vn = 30.0f; // 30 cm/s
- 		        t1 = 2.0f; // aceleration time = 2 seconds
- 		        t2 = 8.0f; // starting deceleration slope
- 		        T = 10.0f; // finishing movement
- 		        // deceleration time = 2 seconds
- 		        SP_Pos = 0.0f;
- 		        time_ctl = 0.0f;
- 		        state = 1;
- 		        HAL_TIM_Base_Start_IT(&htim1);
- 		        start = 0;
- 	  }
+// 	  if (start == 1)
+// 	  {
+// 		 // Setup of variables
+// 		        Vn = 90.0f; // 30 cm/s
+// 		        t1 = 2.0f; // aceleration time = 2 seconds
+// 		        t2 = 8.0f; // starting deceleration slope
+// 		        T = 10.0f; // finishing movement
+// 		        // deceleration time = 2 seconds
+// 		        SP_Pos = 0.0f;
+// 		        time_ctl = 0.0f;
+// 		        state = 1;
+// 		        HAL_TIM_Base_Start_IT(&htim1);
+// 		        start = 0;
+// 	  }
 
 
 
-      // Imprimir por UART
+//       Imprimir por UART
 	    if (send_flag)
 	    {
 	        send_flag = 0;
-	        HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 5);
+	        //HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 5);
+	        dt = last_ctl - time_ctl;
+	        last_ctl = time_ctl;
+
 	    }
 
   }
@@ -487,7 +506,7 @@ static void MX_TIM1_Init(void)
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 7200;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 1000-1;
+  htim1.Init.Period = 100-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -933,32 +952,30 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM1)
     {
-    	//isr_timestamp = HAL_GetTick();
+      isr_timestamp = HAL_GetTick();
 
-//      time_ctl += 0.01;
-//
-//      // Motor 1
-//      distance_M1 = (position_M1 * circunference)/ratio;
-//      delta_M1 = distance_M1 - last_position_M1;
-//      velocity_M1 = delta_M1 / d_time;
-//      last_position_M1 = distance_M1;
-//
-//      // Motor 2
-//      distance_M2 = (position_M2 * circunference)/ratio;
-//      delta_M2 = distance_M2 - last_position_M2;
-//      velocity_M2 = delta_M2 / d_time;
-//      last_position_M2 = distance_M2;
-//
-//      // Motor 1 errors
-//      Error_Pos_M1 = SP_Pos - distance_M1;
-//      Error_Vel_M1 = SP_Vel_M1 - velocity_M1;
-//
-//      // Motor 2 errors
-//      Error_Pos_M2 = SP_Pos - distance_M2;
-//      Error_Vel_M2 = SP_Vel_M2 - velocity_M2;
+      // Motor 1
+      distance_M1 = (position_M1 * circunference)/ratio;
+      delta_M1 = distance_M1 - last_position_M1;
+      velocity_M1 = (delta_M1 / d_time); //* 60;
+      last_position_M1 = distance_M1;
+
+      // Motor 2
+      distance_M2 = (position_M2 * circunference)/ratio;
+      delta_M2 = distance_M2 - last_position_M2;
+      velocity_M2 = delta_M2 / d_time;
+      last_position_M2 = distance_M2;
+
+      // Motor 1 errors
+      Error_Pos_M1 = SP_Pos - distance_M1;
+      Error_Vel_M1 = SP_Vel_M1 - velocity_M1;
+
+      // Motor 2 errors
+      Error_Pos_M2 = SP_Pos - distance_M2;
+      Error_Vel_M2 = SP_Vel_M2 - velocity_M2;
 
       //sprintf(msg, "%lu %.2f\r\n", isr_timestamp, velocity_M1);
-      //send_flag = 1;
+      send_flag = 1;
 
     }
 }
@@ -1003,11 +1020,11 @@ void PID_Position(float error_M1, float error_M2)
     static float last_error_M2 = 0;
 
     /* Outer-loop gains must be small */
-    static int Kp_M1 = 20;
+    static int Kp_M1 = 800;
     static int Ki_M1 = 0;
     static int Kd_M1 = 0;
 
-    static int Kp_M2 = 20;
+    static int Kp_M2 = 800;
     static int Ki_M2 = 0;
     static int Kd_M2 = 0;
 
@@ -1017,7 +1034,7 @@ void PID_Position(float error_M1, float error_M2)
 
 
     integral_M1 += error_M1 * d_time;
-    integral_M2 += error_M1 * d_time;
+    integral_M2 += error_M2 * d_time;
 
     if (integral_M1 > INTEGRAL_MAX) integral_M1 = INTEGRAL_MAX;
     if (integral_M1 < INTEGRAL_MIN) integral_M1 = INTEGRAL_MIN;
@@ -1064,22 +1081,22 @@ void PID_Velocity(float error_M1, float error_M2)
     static int last_error_M2 = 0;
 
     /* Outer-loop gains must be small */
-    static int Kp_M1 = 200;
+    static int Kp_M1 = 500;
     static int Ki_M1 = 0;
     static int Kd_M1 = 0;
 
-    static int Kp_M2 = 200;
+    static int Kp_M2 = 500;
     static int Ki_M2 = 0;
     static int Kd_M2 = 0;
 
     /* Anti-windup limits */
-    const int INTEGRAL_MAX = 20000;
-    const int INTEGRAL_MIN = -20000;
+    const int INTEGRAL_MAX = 2000;
+    const int INTEGRAL_MIN = -2000;
 
     /* Integral accumulation */
 
     integral_M1 += error_M1 * d_time;
-    integral_M2 += error_M1 * d_time;
+    integral_M2 += error_M2 * d_time;
 
 
     if (integral_M1 > INTEGRAL_MAX) integral_M1 = INTEGRAL_MAX;
@@ -1108,17 +1125,17 @@ void PID_Velocity(float error_M1, float error_M2)
 
 
     //Clamping
-    if (Corrected_Vel_M1> 39999) Corrected_Vel_M1 = 39999;
-    if (Corrected_Vel_M1< 0) Corrected_Vel_M1 = 0;
+    if (Corrected_Vel_M1 > 39999) Corrected_Vel_M1 = 39999;
+    if (Corrected_Vel_M1 < 1000) Corrected_Vel_M1 = 0;
 
-    if (Corrected_Vel_M2> 39999) Corrected_Vel_M2 = 39999;
-    if (Corrected_Vel_M2< 0) Corrected_Vel_M2 = 0;
+    if (Corrected_Vel_M2 > 39999) Corrected_Vel_M2 = 39999;
+    if (Corrected_Vel_M2 < 1000) Corrected_Vel_M2 = 0;
 
 
 
     // Apply PWM — each motor independent
     TIM3->CCR1 = Corrected_Vel_M1;  // Motor 1
-    TIM3->CCR2 = Corrected_Vel_M1;  // Motor 2
+    TIM3->CCR2 = Corrected_Vel_M2;  // Motor 2
 }
 
 void PID_Servo(float error_serv)
