@@ -80,8 +80,10 @@ void HCSR04_Read (void);
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
 void delay (uint16_t time);
 
-float PID_Position(float, float);
-float PID_Velocity(float, float);
+void PID_Position(float error_M1, float error_M2);
+void PID_Velocity(float error_M1, float error_M2);
+
+void PID_Servo(float error_serv);
 
 // lECTURA DE IMU
 void BNO055_Write(uint8_t reg, uint8_t value);
@@ -99,8 +101,8 @@ uint32_t isr_timestamp = 0;
 
 int CH1_DC = 18000;
 int POTATO = 0;
-float angular_velocity_M1;
-float angular_velocity_M2;
+float velocity_M1;
+float velocity_M2;
 
 long position_M1 = 0;
 long position_M2 = 0;
@@ -115,7 +117,7 @@ int ackerman = 1900;
 
 
 
-float d_time = 0.01;
+int d_time = 0.01;
 float ratio = 12 * 20.5;
 float circunference = 3.14*0.087;
 
@@ -140,7 +142,8 @@ float head;
    float T = 20.0f; // finishing movement
    // deceleration time = 2 seconds
    float SP_Pos = 0.0f;
-   float SP_Vel = 0.0f;
+   float SP_Vel_M1 = 0.0f;
+   float SP_Vel_M2 = 0.0f;
 
    float Error_Pos_M1 = 0.0f;
    float Error_Vel_M1 = 0.0f;
@@ -303,8 +306,8 @@ int main(void)
           }
     }
 
-    PID_Position(SP_Pos, Error_Pos_M1, Error_Pos_M2);
-    PID_Velocity(SP_Vel, Error_Vel_M1, Error_Vel_M2);
+    PID_Position(Error_Pos_M1, Error_Pos_M2);
+    PID_Velocity(Error_Vel_M1, Error_Vel_M2);
 
     PID_Servo(E_head);
  	  TIM2 -> CCR1 = ackerman;
@@ -935,56 +938,28 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     	isr_timestamp = HAL_GetTick();
 
       // Motor 1
-      delta_M1 = position_M1 - last_position_M1;
-      angular_velocity_M1 = (delta_M1 / ratio) / d_time;
-      last_position_M1 = position_M1;
+
+      distance_M1 = (position_M1 * circunference)/ratio
+      delta_M1 = distance_M1 - last_position_M1;
+      velocity_M1 = delta_M1 / d_time;
+      last_position_M1 = distance_M1;
 
       // Motor 2
-		  delta_M2 = (-last_position_M2 + position_M2);
-		  angular_velocity_M2 = (delta_M2 / ratio) / d_time;
-		  last_position_M2 = position_M2;
-
+      distance_M2 = (position_M2 * circunference)/ratio
+      delta_M2 = distance_M2 - last_position_M2;
+      velocity_M2 = delta_M2 / d_time;
+      last_position_M2 = distance_M2;
 
       // Motor 1 errors
-      Error_Pos_M1 = SP_Pos - position_M1;
-      Error_Vel_M1 = SP_Vel - angular_velocity_M1;
+      Error_Pos_M1 = SP_Pos - distance_M1;
+      Error_Vel_M1 = SP_Vel - velocity_M1;
 
       // Motor 2 errors
-      Error_Pos_M2 = SP_Pos - position_M2;
-      Error_Vel_M2 = SP_Vel - angular_velocity_M2;
+      Error_Pos_M2 = SP_Pos - distance_M2;
+      Error_Vel_M2 = SP_Vel - velocity_M2;
 
-            //ErrorAcumPos_M1 += Error_Pos_M1;
-            //ErrorAcumPos_M2 += Error_Pos_M2;
-
-            /* //Position PID
-            Corrected_Pos_M1 = Error_Pos_M1*Kpp1 + ErrorAcumPos_M1*Kip1;
-            Corrected_Pos_M2 = Error_Pos_M2*Kpp2 + ErrorAcumPos_M1*Kip2;
-
-
-            // PID outputs
-            Corrected_Vel_M1 = Error_Vel_M1*Kpv1 + Corrected_pos;
-            Corrected_Vel_M2 = Error_Vel_M2*Kpv2;
-
-            //Clamping
-            if (Corrected_Vel_M1>100.0) Corrected_Vel_M1 =100.0;
-            if (Corrected_Vel_M1<-100.0) Corrected_Vel_M1 =-100.0;
-
-            if (Corrected_Vel_M2>100.0) Corrected_Vel_M2 =100.0;
-            if (Corrected_Vel_M2<9000) Corrected_Vel_M2 =9000.0;
-
-            // Convert to PWM
-            duty1 = SP_Vel * factor;
-            duty2 = SP_Vel * factor;
-
-
-            // Apply PWM — each motor independent
-            TIM3->CCR1 = SP_Vel*factor;  // Motor 1
-            TIM3->CCR2 = SP_Vel*factor;  // Motor 2 */
-
-
-
-            sprintf(msg, "%lu %.2f\r\n", isr_timestamp, angular_velocity_M1);
-            send_flag = 1;
+      sprintf(msg, "%lu %.2f\r\n", isr_timestamp, velocity_M1);
+      send_flag = 1;
 
     }
 }
@@ -1020,13 +995,74 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
     }
 }
 
-void PID_Position(int setpoint, int error_M1, int error_M2)
+void PID_Position(float error_M1, float error_M2)
 {
-    static int INTEGRAL_MAX_M1 = 0;
+    static int integral_M1 = 0;
     static int last_error_M1 = 0;
 
     static int integral_M2 = 0;
     static int last_error_M2 = 0;
+
+    /* Outer-loop gains must be small */
+    static int Kp_M1 = 20;
+    static int Ki_M1 = 0;
+    static int Kd_M1 = 0;
+
+    static int Kp_M2 = 20;
+    static int Ki_M2 = 0;
+    static int Kd_M2 = 0;
+
+    /* Anti-windup */
+    int INTEGRAL_MAX = 500;
+    int INTEGRAL_MIN = -500;
+
+
+    integral_M1 += error_M1 * d_time;
+    integral_M2 += error_M1 * d_time;
+
+    if (integral_M1 > INTEGRAL_MAX) integral_M1 = INTEGRAL_MAX;
+    if (integral_M1 < INTEGRAL_MIN) integral_M1 = INTEGRAL_MIN;
+
+    if (integral_M2 > INTEGRAL_MAX) integral_M2 = INTEGRAL_MAX;
+    if (integral_M2 < INTEGRAL_MIN) integral_M2 = INTEGRAL_MIN;
+
+    float derivative_M1 = (error_M1 - last_error_M1) / d_time;
+    last_error_M1 = error_M1;
+
+    float derivative_M1 = (error_M2 - last_error_M2) / d_time;
+    last_error_M2 = error_M2;
+
+    float Corrected_Pos_M1 =
+            (Kp * error) +
+            (Ki * integral) +
+            (Kd * derivative);
+
+    float Corrected_Pos_M2 =
+            (Kp * error) +
+            (Ki * integral) +
+            (Kd * derivative);
+
+
+    //Clamping
+    if (Corrected_Pos_M1> 39999) Corrected_Vel_M1 = 39999;
+    if (Corrected_Pos_M1< 8500) Corrected_Vel_M1 = 0;
+
+    if (Corrected_Pos_M1> 39999) Corrected_Vel_M1 = 39999;
+    if (Corrected_Pos_M1< 8500) Corrected_Vel_M1 = 0;
+
+
+    SP_Vel_M1 = Corrected_Pos_M1;
+    SP_Vel_M2 = Corrected_Pos_M2;
+
+}
+
+void PID_Velocity(float error_M1, float error_M2)
+{
+    static float integral_M1 = 0;
+    static float last_error_M1 = 0;
+
+    static float integral_M2 = 0;
+    static float last_error_M2 = 0;
 
     /* Outer-loop gains must be small */
     static int Kp_M1 = 200;
@@ -1037,23 +1073,35 @@ void PID_Position(int setpoint, int error_M1, int error_M2)
     static int Ki_M2 = 0;
     static int Kd_M2 = 0;
 
-    /* Anti-windup */
-    int INTEGRAL_MAX_M1 = 5000;
-    int INTEGRAL_MIN_M1 = -5000;
+    /* Anti-windup limits */
+    const int INTEGRAL_MAX = 20000;
+    const int INTEGRAL_MIN = -20000;
 
-    int INTEGRAL_MAX_M2 = 5000;
-    int INTEGRAL_MIN_M2 = -5000;
+    /* Integral accumulation */
 
     integral_M1 += error_M1 * d_time;
     integral_M2 += error_M1 * d_time;
 
+
     if (integral_M1 > INTEGRAL_MAX) integral_M1 = INTEGRAL_MAX;
     if (integral_M1 < INTEGRAL_MIN) integral_M1 = INTEGRAL_MIN;
 
-    float derivative = (error - last_error) / d_time;
-    last_error = error;
+    if (integral_M2 > INTEGRAL_MAX) integral_M2 = INTEGRAL_MAX;
+    if (integral_M2 < INTEGRAL_MIN) integral_M2 = INTEGRAL_MIN;
 
-    uint16_t Corrected_pos_M1 =
+    float derivative_M1 = (error_M1 - last_error_M1) / d_time;
+    last_error_M1 = error_M1;
+
+    float derivative_M1 = (error_M2 - last_error_M2) / d_time;
+    last_error_M2 = error_M2;
+
+    uint16_t Corrected_Vel_M1 =
+            uint16_t(
+            (Kp * error) +
+            (Ki * integral) +
+            (Kd * derivative));
+
+    uint16_t Corrected_Vel_M2 =
             uint16_t(
             (Kp * error) +
             (Ki * integral) +
@@ -1061,54 +1109,12 @@ void PID_Position(int setpoint, int error_M1, int error_M2)
 
 
     //Clamping
-    if (Corrected_pos_M1> 39999) Corrected_Vel_M1 = 39999;
-    if (Corrected_pos_M1< 5000) Corrected_Vel_M1 = 0;
+    if (Corrected_Vel_M1> 39999) Corrected_Vel_M1 = 39999;
+    if (Corrected_Vel_M1< 5000) Corrected_Vel_M1 = 0;
 
+    if (Corrected_Vel_M1> 39999) Corrected_Vel_M1 = 39999;
+    if (Corrected_Vel_M1< 5000) Corrected_Vel_M1 = 0;
 
-    PID_Velocity()
-}
-
-float PID_Velocity(float setpoint, float error_M2)
-{
-    static float integral = 0;
-    static float last_error = 0;
-
-    /* Tunable gains */
-    const int Kp = 300;
-    const int Ki = 0;
-    const float Kd = 0;
-
-    /* Anti-windup limits */
-    const int INTEGRAL_MAX = 20000.0f;
-    const int INTEGRAL_MIN = -20000.0f;
-
-    /* Integral accumulation */
-    integral += error * d_time;
-
-    /* Apply anti-windup */
-    if (integral > INTEGRAL_MAX) integral = INTEGRAL_MAX;
-    if (integral < INTEGRAL_MIN) integral = INTEGRAL_MIN;
-
-    /* Derivative term */
-    float derivative = (error - last_error) / d_time;
-    last_error = error;
-
-    /* Compute PID output */
-    uint16_t Corrected_Vel_M1 =
-            (Kp * error) +
-            (Ki * integral) +
-            (Kd * derivative);
-
-    //Clamping
-    if (Corrected_Vel_M1>39999) Corrected_Vel_M1 =39999;
-    if (Corrected_Vel_M1<9000) Corrected_Vel_M1 =9000;
-
-    if (Corrected_Vel_M2>39999) Corrected_Vel_M2 = 39999;
-    if (Corrected_Vel_M2<9000) Corrected_Vel_M2 = 9000.0;
-
-    // Convert to PWM
-    duty1 = SP_Vel * factor;
-    duty2 = SP_Vel * factor;
 
 
     // Apply PWM — each motor independent
@@ -1116,7 +1122,47 @@ float PID_Velocity(float setpoint, float error_M2)
     TIM3->CCR2 = Corrected_Vel_M2;  // Motor 2 
 }
 
+void PID_Servo(float error_serv)
+{
+    static float integral = 0;
+    static float last_error = 0;
 
+    /* Outer-loop gains must be small */
+    static int Kp = 200;
+    static int Ki = 0;
+    static int Kd = 0;
+
+    /* Anti-windup limits */
+    const int INTEGRAL_MAX = 20000;
+    const int INTEGRAL_MIN = -20000;
+
+    /* Integral accumulation */
+
+    integral += error_serv * d_time;
+  
+    if (integral > INTEGRAL_MAX) integral = INTEGRAL_MAX;
+    if (integral < INTEGRAL_MIN) integral = INTEGRAL_MIN;
+
+    float derivative = (error_serv - last_error) / d_time;
+    last_error = error_serv;
+
+    uint16_t Corrected_Angle =
+            uint16_t(
+            (Kp * error_serv) +
+            (Ki * integral) +
+            (Kd * derivative));
+
+
+
+    //Clamping
+    if (Corrected_Angle > 2900) Corrected_Angle = 2900;
+    if (Corrected_Angle < 1000) Corrected_Angle = 1000;
+
+
+
+    // Apply PWM — each motor independent
+    TIM2->CCR1 = Corrected_Vel_M1;  // Motor 1
+}
 
 void HCSR04_Read (void)
 {
