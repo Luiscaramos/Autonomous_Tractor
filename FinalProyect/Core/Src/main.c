@@ -99,8 +99,8 @@ char msg[50];
 volatile uint8_t send_flag = 0;
 uint32_t isr_timestamp = 0;
 
-int CH1_DC = 18000;
-int POTATO = 0;
+
+
 float velocity_M1;
 float velocity_M2;
 
@@ -110,14 +110,14 @@ long position_M2 = 0;
 long last_position_M1 = 0;
 long last_position_M2 = 0;
 
-int ackerman = 2900;
+
 //1000 = derecha
 //2000 = recto
 //3000 = izquierda
 
 
 
-int d_time = 0.01;
+float d_time = 0.01;
 float ratio = 12 * 20.5;
 float circunference = 3.14*0.087;
 
@@ -131,6 +131,7 @@ float distance_M1;
 float distance_M2;
 
 float head;
+float E_head;
 
 
 // Setup of variables
@@ -156,25 +157,10 @@ float head;
    float Corrected_Pos_M2 = 0.0f;
    float Corrected_Vel_M2 = 0.0f;
 
-   float duty1 = 0.0f;
-   float duty2 = 0.0f;
-
-
-   float factor = 360.0f;
 
    float time_ctl = 0.0f;
    int state = 1;
 
-   float Kpp1 = 1.0f;
-   float Kpp2 = 1.0f;
-   float Kip1 = 0.0f;
-   float Kip2 = 0.0f;
-   float Kpv1 = 1.0f;
-   float Kpv2 = 1.0f;
-
-   float ErrorAcumPos_M1 = 0.0f;
-   float ErrorAcumPos_M2 = 0.0f;
-   float E_head = 0;
    float turn = 90;
 
 
@@ -253,7 +239,7 @@ int main(void)
       // ERROR: Sensor no detectado
 	  char msg[128];
       sprintf(msg, "Error en la conexion del BN0 \r\n");
-      HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 10);
+      HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 10);
       while(1);
   }
 
@@ -267,21 +253,19 @@ int main(void)
 
   while (1)
     {
-	  HCSR04_Read();
-//
-  	distance_M1 = (position_M1/ratio)* circunference;
-  	distance_M2 = (position_M2/ratio)* circunference;
+//	  HCSR04_Read();
+	  get_head();
 
 
 
     if (state != 0)
     {
-    	time_ctl = (float)isr_timestamp / 1000.0;
 
       switch (state)
       {
           case 1: // Accel
                 SP_Vel_M1 = (time_ctl / t1) * Vn;
+                SP_Vel_M2 = SP_Vel_M1;
                 SP_Pos = time_ctl * SP_Vel_M1 * 0.5f;
                 if (time_ctl >= t1) state = 2;
               break;
@@ -309,10 +293,10 @@ int main(void)
           }
     }
 
-    PID_Position(Error_Pos_M1, Error_Pos_M2);
-    PID_Velocity(Error_Vel_M1, Error_Vel_M2);
+    //PID_Position(Error_Pos_M1, Error_Pos_M2);
+    //PID_Velocity(Error_Vel_M1, Error_Vel_M2);
 
-	  get_head();
+
 
 	  E_head = 180 - abs(head - 180);
 	  if (head < 180){E_head*= -1;}
@@ -320,18 +304,18 @@ int main(void)
 	  //Positive is right
 	  //Negative us left
 
-	  E_head = turn + E_head;
+	  //E_head = turn + E_head;
 
     PID_Servo(E_head);
 
- 	  TIM2 -> CCR1 = ackerman;
+
  	  if (start == 1)
  	  {
  		 // Setup of variables
  		        Vn = 30.0f; // 30 cm/s
  		        t1 = 2.0f; // aceleration time = 2 seconds
- 		        t2 =18.0f; // starting deceleration slope
- 		        T = 20.0f; // finishing movement
+ 		        t2 = 8.0f; // starting deceleration slope
+ 		        T = 10.0f; // finishing movement
  		        // deceleration time = 2 seconds
  		        SP_Pos = 0.0f;
  		        time_ctl = 0.0f;
@@ -949,30 +933,32 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM1)
     {
-    	isr_timestamp = HAL_GetTick();
+    	//isr_timestamp = HAL_GetTick();
 
-      // Motor 1
-      distance_M1 = (position_M1 * circunference)/ratio;
-      delta_M1 = distance_M1 - last_position_M1;
-      velocity_M1 = delta_M1 / d_time;
-      last_position_M1 = distance_M1;
+//      time_ctl += 0.01;
+//
+//      // Motor 1
+//      distance_M1 = (position_M1 * circunference)/ratio;
+//      delta_M1 = distance_M1 - last_position_M1;
+//      velocity_M1 = delta_M1 / d_time;
+//      last_position_M1 = distance_M1;
+//
+//      // Motor 2
+//      distance_M2 = (position_M2 * circunference)/ratio;
+//      delta_M2 = distance_M2 - last_position_M2;
+//      velocity_M2 = delta_M2 / d_time;
+//      last_position_M2 = distance_M2;
+//
+//      // Motor 1 errors
+//      Error_Pos_M1 = SP_Pos - distance_M1;
+//      Error_Vel_M1 = SP_Vel_M1 - velocity_M1;
+//
+//      // Motor 2 errors
+//      Error_Pos_M2 = SP_Pos - distance_M2;
+//      Error_Vel_M2 = SP_Vel_M2 - velocity_M2;
 
-      // Motor 2
-      distance_M2 = (position_M2 * circunference)/ratio;
-      delta_M2 = distance_M2 - last_position_M2;
-      velocity_M2 = delta_M2 / d_time;
-      last_position_M2 = distance_M2;
-
-      // Motor 1 errors
-      Error_Pos_M1 = SP_Pos - distance_M1;
-      Error_Vel_M1 = SP_Vel_M1 - velocity_M1;
-
-      // Motor 2 errors
-      Error_Pos_M2 = SP_Pos - distance_M2;
-      Error_Vel_M2 = SP_Vel_M2 - velocity_M2;
-
-      sprintf(msg, "%lu %.2f\r\n", isr_timestamp, velocity_M1);
-      send_flag = 1;
+      //sprintf(msg, "%lu %.2f\r\n", isr_timestamp, velocity_M1);
+      //send_flag = 1;
 
     }
 }
@@ -1123,16 +1109,16 @@ void PID_Velocity(float error_M1, float error_M2)
 
     //Clamping
     if (Corrected_Vel_M1> 39999) Corrected_Vel_M1 = 39999;
-    if (Corrected_Vel_M1< 5000) Corrected_Vel_M1 = 0;
+    if (Corrected_Vel_M1< 0) Corrected_Vel_M1 = 0;
 
-    if (Corrected_Vel_M1> 39999) Corrected_Vel_M1 = 39999;
-    if (Corrected_Vel_M1< 5000) Corrected_Vel_M1 = 0;
+    if (Corrected_Vel_M2> 39999) Corrected_Vel_M2 = 39999;
+    if (Corrected_Vel_M2< 0) Corrected_Vel_M2 = 0;
 
 
 
     // Apply PWM — each motor independent
     TIM3->CCR1 = Corrected_Vel_M1;  // Motor 1
-    TIM3->CCR2 = Corrected_Vel_M2;  // Motor 2 
+    TIM3->CCR2 = Corrected_Vel_M1;  // Motor 2
 }
 
 void PID_Servo(float error_serv)
@@ -1141,7 +1127,7 @@ void PID_Servo(float error_serv)
     static float last_error = 0;
 
     /* Outer-loop gains must be small */
-    static int Kp = 200;
+    static int Kp = 100;
     static int Ki = 0;
     static int Kd = 0;
 
@@ -1160,7 +1146,7 @@ void PID_Servo(float error_serv)
     last_error = error_serv;
 
     uint16_t Corrected_Angle =
-            (
+            (1900 +
             (Kp * error_serv) +
             (Ki * integral) +
             (Kd * derivative));
