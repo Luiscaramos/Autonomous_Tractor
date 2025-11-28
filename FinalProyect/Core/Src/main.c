@@ -110,7 +110,7 @@ long position_M2 = 0;
 long last_position_M1 = 0;
 long last_position_M2 = 0;
 
-int ackerman = 1900;
+int ackerman = 2900;
 //1000 = derecha
 //2000 = recto
 //3000 = izquierda
@@ -138,8 +138,8 @@ float head;
    float accel = 2.0f;
    float deccel = 2.0f;
    float t1 = 2.0f; // aceleration time = 2 seconds
-   float t2 =18.0f; // starting deceleration slope
-   float T = 20.0f; // finishing movement
+   float t2 =8.0f; // starting deceleration slope
+   float T = 10.0f; // finishing movement
    // deceleration time = 2 seconds
    float SP_Pos = 0.0f;
    float SP_Vel_M1 = 0.0f;
@@ -174,6 +174,8 @@ float head;
 
    float ErrorAcumPos_M1 = 0.0f;
    float ErrorAcumPos_M2 = 0.0f;
+   float E_head = 0;
+   float turn = 90;
 
 
 uint32_t IC_Val1 = 0;
@@ -279,23 +281,24 @@ int main(void)
       switch (state)
       {
           case 1: // Accel
-                SP_Vel = (time_ctl / t1) * Vn;
-                SP_Pos = time_ctl * SP_Vel * 0.5f;
+                SP_Vel_M1 = (time_ctl / t1) * Vn;
+                SP_Pos = time_ctl * SP_Vel_M1 * 0.5f;
                 if (time_ctl >= t1) state = 2;
               break;
 
           case 2: // Cruise
-                SP_Vel = Vn;
-                SP_Pos = (t1 * Vn * 0.5f) + SP_Vel * (time_ctl - t1);
+                SP_Vel_M1 = Vn;
+                SP_Vel_M2 = Vn;
+                SP_Pos = (t1 * Vn * 0.5f) + SP_Vel_M1 * (time_ctl - t1);
                 if (time_ctl >= t2) state = 3;
               break;
 
           case 3: // Deccel
-                  SP_Vel = Vn * (T - time_ctl) / (T - t2);
+                  SP_Vel_M1 = Vn * (T - time_ctl) / (T - t2);
                   SP_Pos =
                       (t1 * Vn * 0.5f) +
                       Vn * (t2 - t1) +
-                      (Vn + SP_Vel) * (time_ctl - t2) * 0.5f;
+                      (Vn + SP_Vel_M1) * (time_ctl - t2) * 0.5f;
 
                   if (time_ctl >= T)
                   {
@@ -309,7 +312,18 @@ int main(void)
     PID_Position(Error_Pos_M1, Error_Pos_M2);
     PID_Velocity(Error_Vel_M1, Error_Vel_M2);
 
+	  get_head();
+
+	  E_head = 180 - abs(head - 180);
+	  if (head < 180){E_head*= -1;}
+
+	  //Positive is right
+	  //Negative us left
+
+	  E_head = turn + E_head;
+
     PID_Servo(E_head);
+
  	  TIM2 -> CCR1 = ackerman;
  	  if (start == 1)
  	  {
@@ -938,25 +952,24 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     	isr_timestamp = HAL_GetTick();
 
       // Motor 1
-
-      distance_M1 = (position_M1 * circunference)/ratio
+      distance_M1 = (position_M1 * circunference)/ratio;
       delta_M1 = distance_M1 - last_position_M1;
       velocity_M1 = delta_M1 / d_time;
       last_position_M1 = distance_M1;
 
       // Motor 2
-      distance_M2 = (position_M2 * circunference)/ratio
+      distance_M2 = (position_M2 * circunference)/ratio;
       delta_M2 = distance_M2 - last_position_M2;
       velocity_M2 = delta_M2 / d_time;
       last_position_M2 = distance_M2;
 
       // Motor 1 errors
       Error_Pos_M1 = SP_Pos - distance_M1;
-      Error_Vel_M1 = SP_Vel - velocity_M1;
+      Error_Vel_M1 = SP_Vel_M1 - velocity_M1;
 
       // Motor 2 errors
       Error_Pos_M2 = SP_Pos - distance_M2;
-      Error_Vel_M2 = SP_Vel - velocity_M2;
+      Error_Vel_M2 = SP_Vel_M2 - velocity_M2;
 
       sprintf(msg, "%lu %.2f\r\n", isr_timestamp, velocity_M1);
       send_flag = 1;
@@ -997,11 +1010,11 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 
 void PID_Position(float error_M1, float error_M2)
 {
-    static int integral_M1 = 0;
-    static int last_error_M1 = 0;
+    static float integral_M1 = 0;
+    static float last_error_M1 = 0;
 
-    static int integral_M2 = 0;
-    static int last_error_M2 = 0;
+    static float integral_M2 = 0;
+    static float last_error_M2 = 0;
 
     /* Outer-loop gains must be small */
     static int Kp_M1 = 20;
@@ -1029,18 +1042,18 @@ void PID_Position(float error_M1, float error_M2)
     float derivative_M1 = (error_M1 - last_error_M1) / d_time;
     last_error_M1 = error_M1;
 
-    float derivative_M1 = (error_M2 - last_error_M2) / d_time;
+    float derivative_M2 = (error_M2 - last_error_M2) / d_time;
     last_error_M2 = error_M2;
 
     float Corrected_Pos_M1 =
-            (Kp * error) +
-            (Ki * integral) +
-            (Kd * derivative);
+            (Kp_M1 * error_M1) +
+            (Ki_M1 * integral_M1) +
+            (Kd_M1 * derivative_M1);
 
     float Corrected_Pos_M2 =
-            (Kp * error) +
-            (Ki * integral) +
-            (Kd * derivative);
+            (Kp_M2 * error_M2) +
+            (Ki_M2 * integral_M2) +
+            (Kd_M2 * derivative_M2);
 
 
     //Clamping
@@ -1051,18 +1064,18 @@ void PID_Position(float error_M1, float error_M2)
     if (Corrected_Pos_M1< 8500) Corrected_Vel_M1 = 0;
 
 
-    SP_Vel_M1 = Corrected_Pos_M1;
-    SP_Vel_M2 = Corrected_Pos_M2;
+    SP_Vel_M1 = Corrected_Pos_M1 + Vn;
+    SP_Vel_M2 = Corrected_Pos_M2 + Vn;
 
 }
 
 void PID_Velocity(float error_M1, float error_M2)
 {
-    static float integral_M1 = 0;
-    static float last_error_M1 = 0;
+    static int integral_M1 = 0;
+    static int last_error_M1 = 0;
 
-    static float integral_M2 = 0;
-    static float last_error_M2 = 0;
+    static int integral_M2 = 0;
+    static int last_error_M2 = 0;
 
     /* Outer-loop gains must be small */
     static int Kp_M1 = 200;
@@ -1092,20 +1105,20 @@ void PID_Velocity(float error_M1, float error_M2)
     float derivative_M1 = (error_M1 - last_error_M1) / d_time;
     last_error_M1 = error_M1;
 
-    float derivative_M1 = (error_M2 - last_error_M2) / d_time;
+    float derivative_M2 = (error_M2 - last_error_M2) / d_time;
     last_error_M2 = error_M2;
 
     uint16_t Corrected_Vel_M1 =
-            uint16_t(
-            (Kp * error) +
-            (Ki * integral) +
-            (Kd * derivative));
+            (
+            (Kp_M1 * error_M1) +
+            (Ki_M1 * integral_M1) +
+            (Kd_M1 * derivative_M1));
 
     uint16_t Corrected_Vel_M2 =
-            uint16_t(
-            (Kp * error) +
-            (Ki * integral) +
-            (Kd * derivative));
+            (
+            (Kp_M2 * error_M2) +
+            (Ki_M2 * integral_M2) +
+            (Kd_M2 * derivative_M2));
 
 
     //Clamping
@@ -1147,7 +1160,7 @@ void PID_Servo(float error_serv)
     last_error = error_serv;
 
     uint16_t Corrected_Angle =
-            uint16_t(
+            (
             (Kp * error_serv) +
             (Ki * integral) +
             (Kd * derivative));
@@ -1155,13 +1168,13 @@ void PID_Servo(float error_serv)
 
 
     //Clamping
-    if (Corrected_Angle > 2900) Corrected_Angle = 2900;
+    if (Corrected_Angle > 2800) Corrected_Angle = 2800;
     if (Corrected_Angle < 1000) Corrected_Angle = 1000;
 
 
 
-    // Apply PWM — each motor independent
-    TIM2->CCR1 = Corrected_Vel_M1;  // Motor 1
+    // Apply PWM
+    TIM2->CCR1 = Corrected_Angle + 1900;
 }
 
 void HCSR04_Read (void)
@@ -1199,6 +1212,8 @@ void get_head(void)
 
 	head = heading / 16.0f;
 }
+
+
 
 /* USER CODE END 4 */
 
