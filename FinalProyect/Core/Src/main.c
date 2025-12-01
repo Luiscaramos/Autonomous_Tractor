@@ -100,7 +100,7 @@ volatile uint8_t send_flag = 0;
 uint32_t isr_timestamp = 0;
 
 int kp = 400;
-int ki = 0;
+int ki = 100;
 int kd = 0;
 
 float velocity_M1;
@@ -238,10 +238,13 @@ int main(void)
   uint8_t id = BNO055_Read(0x00);
 
   if(id != 0xA0) {
-      // ERROR: Sensor no detectado
-	  char msg[128];
+      // ERROR: Sensor no detectado}
+	  while(1)
+	  {
+	  //char msg[128];
       sprintf(msg, "Error en la conexion del BN0 \r\n");
       HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 10);
+	  }
   }
 
   // Cambiar a CONFIG MODE
@@ -258,7 +261,7 @@ int main(void)
 
 	  /* USER CODE BEGIN 3 */
 //	  HCSR04_Read();
-	  //get_head();
+	  get_head();
 
 
 
@@ -314,15 +317,13 @@ int main(void)
 
 
 
-	  E_head = 180 - abs(head - 180);
-	  if (head > 180){E_head*= -1;}
+    E_head = turn - head;
+    while (E_head > 180) E_head -= 360;
+    while (E_head < -180) E_head += 360;
 
-	  //Positive is right
-	  //Negative us left
+	E_head = turn + E_head;
 
-	  //E_head = turn + E_head;
-
-      PID_Servo(E_head);
+    PID_Servo(E_head);
 
 
 // 	  if (start == 1)
@@ -1080,18 +1081,18 @@ void PID_Velocity(float error_M1, float error_M2)
     static int integral_M2 = 0;
     static int last_error_M2 = 0;
 
-    /* Outer-loop gains must be small */
-    static int Kp_M1 = 500;
-    static int Ki_M1 = 0;
-    static int Kd_M1 = 0;
+   /* Outer-loop gains must be small */
+    static int Kp_M1 = 400;
+    static int Ki_M1 = 100;
+    static int Kd_M1 = 10;
 
-    static int Kp_M2 = 500;
-    static int Ki_M2 = 0;
-    static int Kd_M2 = 0;
+    static int Kp_M2 = 400;
+    static int Ki_M2 = 100;
+    static int Kd_M2 = 10;
 
     /* Anti-windup limits */
-    const int INTEGRAL_MAX = 2000;
-    const int INTEGRAL_MIN = -2000;
+    const int INTEGRAL_MAX = 5000;
+    const int INTEGRAL_MIN = -5000;
 
     /* Integral accumulation */
 
@@ -1122,6 +1123,9 @@ void PID_Velocity(float error_M1, float error_M2)
             (Kp_M2 * error_M2) +
             (Ki_M2 * integral_M2) +
             (Kd_M2 * derivative_M2));
+
+
+
 
 
     //Clamping
@@ -1177,7 +1181,7 @@ void PID_Servo(float error_serv)
 
 
     // Apply PWM
-    TIM2->CCR1 = Corrected_Angle + 1900;
+    TIM2->CCR1 = 2800 + Corrected_Angle;
 }
 
 void HCSR04_Read (void)
