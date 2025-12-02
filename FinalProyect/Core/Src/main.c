@@ -110,10 +110,6 @@ char msg[50];
 volatile uint8_t send_flag = 0;
 uint32_t isr_timestamp = 0;
 
-int kp = 400;
-int ki = 100;
-int kd = 0;
-
 float velocity_M1;
 float velocity_M2;
 
@@ -122,6 +118,9 @@ long position_M2 = 0;
 
 float last_position_M1 = 0;
 float last_position_M2 = 0;
+
+float PWM_M1 = 0;
+float PWM_M2 = 0;
 
 
 //1000 = derecha
@@ -134,7 +133,7 @@ char tx_buff[16];
 
 uint8_t last_cmd;
 uint8_t new_cmd;
-int manual_mode = 1;
+int manual_mode = 0;
 
 
 
@@ -391,6 +390,8 @@ int main(void)
 
   	        switch (state)
   	        {
+  	        	case 0:
+  	        		break;
   	            case 1: // ACCEL
   	                SP_Vel_M1 = (t / t1) * Vn;
   	                SP_Vel_M2 = SP_Vel_M1;
@@ -436,11 +437,13 @@ int main(void)
   	            break;
   	            }
   	            case 4:
-  	            	T = T + 10;
-  	            	Direction(1);
-  	            	state = 1;
+  	            	//T = T + 10;
+  	            	Direction(0);
+  	            	state = 0;
   	            	break;
-
+  	            default:
+  	            	state = 0;
+  	            	break;
 
   	        }
   	    }
@@ -454,7 +457,7 @@ int main(void)
   	    Error_Pos_M2 = SP_Pos - distance_M2;
   	    Error_Vel_M2 = SP_Vel_M2 - velocity_M2;
 
-  	    //PID_Position(Error_Pos_M1, Error_Pos_M2);
+  	    PID_Position(Error_Pos_M1, Error_Pos_M2);
   	    PID_Velocity(Error_Vel_M1, Error_Vel_M2);
 
   	    send_flag = 1;
@@ -1144,11 +1147,11 @@ void PID_Position(float error_M1, float error_M2)
     static float last_error_M2 = 0;
 
     /* Outer-loop gains must be small */
-    static int Kp_M1 = 10;
+    static float Kp_M1 = 1.1;
     static int Ki_M1 = 0;
     static int Kd_M1 = 0;
 
-    static int Kp_M2 = 800;
+    static float Kp_M2 = 1.1;
     static int Ki_M2 = 0;
     static int Kd_M2 = 0;
 
@@ -1206,13 +1209,13 @@ void PID_Velocity(float error_M1, float error_M2)
     static int last_error_M2 = 0;
 
    /* Outer-loop gains must be small */
-    static int Kp_M1 = 1200;
-    static int Ki_M1 = 100;
-    static int Kd_M1 = 0;
+    static int Kp_M1 = 90;
+    static int Ki_M1 = 20;
+    static int Kd_M1 = 1;
 
-    static int Kp_M2 = 1200;
-    static int Ki_M2 = 0;
-    static int Kd_M2 = 0;
+    static int Kp_M2 = 90;
+    static int Ki_M2 = 20;
+    static int Kd_M2 = 1;
 
     /* Anti-windup limits */
     const int INTEGRAL_MAX = 5000;
@@ -1236,13 +1239,13 @@ void PID_Velocity(float error_M1, float error_M2)
     float derivative_M2 = (error_M2 - last_error_M2) / d_time;
     last_error_M2 = error_M2;
 
-    uint16_t Corrected_Vel_M1 = oli
+    int Corrected_Vel_M1 =
             (
             (Kp_M1 * error_M1) +
             (Ki_M1 * integral_M1) +
             (Kd_M1 * derivative_M1));
 
-    uint16_t Corrected_Vel_M2 =
+    int Corrected_Vel_M2 =
             (
             (Kp_M2 * error_M2) +
             (Ki_M2 * integral_M2) +
@@ -1252,20 +1255,25 @@ void PID_Velocity(float error_M1, float error_M2)
 
 
 
-    //Clamping
-    if (Corrected_Vel_M1 > 39999) Corrected_Vel_M1 = 39999;
-    if (Corrected_Vel_M1 < 1000) Corrected_Vel_M1 = 1000;
 
-
-    if (Corrected_Vel_M2 > 39999) Corrected_Vel_M2 = 39999;
-    if (Corrected_Vel_M2 < 1000) Corrected_Vel_M2 = 1000;
 
     if (state == 0){Corrected_Vel_M1 = 0; Corrected_Vel_M2 = 0;}
 
     dt = Corrected_Vel_M1;
+
+    PWM_M1 += Corrected_Vel_M1;
+    PWM_M2 += Corrected_Vel_M2;
+
+    //Clamping
+    if (PWM_M1 > 39999) PWM_M1 = 39999;
+    if (PWM_M1 < 1000) PWM_M1 = 0;
+
+
+    if (PWM_M2 > 39999) PWM_M2 = 39999;
+    if (PWM_M2 < 1000) PWM_M2 = 0;
     // Apply PWM — each motor independent
-    TIM3->CCR1 = Corrected_Vel_M1;  // Motor 1
-    TIM3->CCR2 = Corrected_Vel_M2;  // Motor 2
+    TIM3->CCR1 = PWM_M1;  // Motor 1
+    TIM3->CCR2 = PWM_M2;  // Motor 2
 }
 
 void PID_Servo(float error_serv)
