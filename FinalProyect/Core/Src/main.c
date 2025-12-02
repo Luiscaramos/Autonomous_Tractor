@@ -234,22 +234,17 @@ int main(void)
 
   	if (Distance < 20)
   	{
-  	    static uint32_t buzzer_timer = 0;
   	    CH1_DC = 0;
-  	    if (HAL_GetTick() - buzzer_timer >= 500)
-  	    {
-  	    	buzzer_timer = HAL_GetTick();
-  	    	HAL_GPIO_TogglePin(Buzzer_GPIO_Port, Buzzer_Pin);
-  	    }
+  	    HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_SET);
   	}
-
-
   	else if (count == 4)
   	  {
-  		  CH1_DC = 0;
+  		HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
+  		CH1_DC = 0;
   	  }
   	else
 	{
+  		HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
 		switch(state)
 		{
 			case 0:{ // moving forward until 1m
