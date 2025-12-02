@@ -71,8 +71,17 @@ static void MX_I2C1_Init(void);
 static void MX_USART3_UART_Init(void);
 /* USER CODE END PV */
 
-
-
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_USART2_UART_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_TIM1_Init(void);
+static void MX_TIM3_Init(void);
+static void MX_TIM2_Init(void);
+static void MX_TIM4_Init(void);
+static void MX_I2C1_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 void Direction(bool drive);
@@ -90,6 +99,8 @@ void BNO055_Write(uint8_t reg, uint8_t value);
 uint8_t BNO055_Read(uint8_t reg);
 
 void get_head(void);
+extern I2C_HandleTypeDef hi2c1;
+void I2C_Scanner(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -117,6 +128,14 @@ float last_position_M2 = 0;
 //2000 = recto
 //3000 = izquierda
 
+// VAriables UART reciver
+uint8_t rx_byte;
+char tx_buff[16];
+
+uint8_t last_cmd;
+uint8_t new_cmd;
+int manual_mode = 1;
+
 
 
 float d_time = 0.01;
@@ -134,9 +153,11 @@ float distance_M2;
 float head;
 float E_head;
 
+int reverse_servo = 0;
+
 
 // Setup of variables
-   float Vn = 30.0f; // 30 cm/s
+   float Vn = 90.0f; // cm/s
    float accel = 2.0f;
    float deccel = 2.0f;
    float t1 = 2.0f; // aceleration time = 2 seconds
@@ -171,6 +192,8 @@ uint32_t Difference = 0;
 uint8_t Is_First_Captured = 0;  // is the first value captured ?
 uint32_t Distance  = 0;
 int start = 0;
+
+int timer_flag = 1;
 
 
 float last_ctl = 0;
@@ -228,132 +251,249 @@ int main(void)
   // Signal ultrasonic
   HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1);
 
+  // Telecom interrupt
+  HAL_UART_Receive_IT(&huart3, &rx_byte, 1);
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  Direction(0);
 
-  // Leer ID para verificar sensor
-  uint8_t id = BNO055_Read(0x00);
+    I2C_Scanner();
+    Direction(0);
 
-  if(id != 0xA0) {
-      // ERROR: Sensor no detectado}
-	  while(1)
-	  {
-	  //char msg[128];
-      sprintf(msg, "Error en la conexion del BN0 \r\n");
-      HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 10);
-	  }
-  }
+    // Leer ID para verificar sensor
+    uint8_t id = BNO055_Read(0x00);
 
-  // Cambiar a CONFIG MODE
-  BNO055_Write(0x3D, 0x00);
-  HAL_Delay(25);
+    if(id != 0xA0) {
+        // ERROR: Sensor no detectado -> print once and go to safe idle (don't busy-loop UART)
+        sprintf(msg, "Error en la conexion del BNO055: ID = 0x%02X\r\n", id);
+        HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
+        // safe idle to allow interrupts and debugger; blink or delay instead of continuous printing
+        while(1)
+        {
+            HAL_Delay(500);
+        }
+    }
 
-  // Cambiar a NDOF (9DOF fusion)
-  BNO055_Write(0x3D, 0x0C);
-  HAL_Delay(20);
+    // Cambiar a CONFIG MODE
+    BNO055_Write(0x3D, 0x00);
+    HAL_Delay(25);
 
-  while (1)
+    // Cambiar a NDOF (9DOF fusion)
+    BNO055_Write(0x3D, 0x0C);
+    HAL_Delay(20);
+
+    while (1)
     {
-	  /* USER CODE END WHILE */
-
-	  /* USER CODE BEGIN 3 */
-//	  HCSR04_Read();
-	  get_head();
-
-
-
-    if (state != 0)
+    int time_manual = 0;
+    int CH1_DC = 0;
+    while(manual_mode)
     {
 
+        if (time_manual > 100)
+        {
 
-    	time_ctl = (float)isr_timestamp / 1000.0;
+        	if (!new_cmd){last_cmd = 0;}
+            time_manual = 0;
+            switch(last_cmd)
+            {
+                case 0:
+                	CH1_DC = 0;
+                	TIM3 -> CCER = CH1_DC;
+                	TIM3 -> CCER = CH1_DC;
+                break;
+                case 'w':  // forward
+                	CH1_DC += 1000;
+					Direction(0);
+                	if (CH1_DC > 40000){CH1_DC = 40000;}
+                    TIM3 -> CCER = CH1_DC;
+                    TIM3 -> CCER = CH1_DC;
 
+                    break;
 
+                case 'a':  // left
+                	turn += 5;
+                	if (turn >= 360){turn = 0;}
+                	get_head();
+                    PID_Servo(E_head);
+                    break;
 
-//      switch (state)
-//      {
-//          case 1: // Accel
-//                SP_Vel_M1 = (time_ctl / t1) * Vn;
-//                SP_Vel_M2 = SP_Vel_M1;
-//                SP_Pos = time_ctl * SP_Vel_M1 * 0.5f;
-//                if (time_ctl >= t1) state = 2;
-//              break;
-//
-//          case 2: // Cruise
-//                SP_Vel_M1 = Vn;
-//                SP_Vel_M2 = Vn;
-//                SP_Pos = (t1 * Vn * 0.5f) + SP_Vel_M1 * (time_ctl - t1);
-//                if (time_ctl >= t2) state = 3;
-//              break;
-//
-//          case 3: // Deccel
-//                  SP_Vel_M1 = Vn * (T - time_ctl) / (T - t2);
-//                  SP_Pos =
-//                      (t1 * Vn * 0.5f) +
-//                      Vn * (t2 - t1) +
-//                      (Vn + SP_Vel_M1) * (time_ctl - t2) * 0.5f;
-//                  SP_Vel_M2 = SP_Vel_M1;
-//                  if (time_ctl >= T)
-//                  {
-//                	  SP_Vel_M1 = 0;
-//                	  SP_Vel_M2 = SP_Vel_M1;
-//
-//                      state = 0;
-//                      //HAL_TIM_Base_Stop_IT(&htim1);
-//                  }
-//              break;
-//          }
-   }
+                case 's':  // backward
 
-    SP_Vel_M1 = Vn;
-    SP_Vel_M2 = Vn;
-    //PID_Position(Error_Pos_M1, Error_Pos_M2);
-    PID_Velocity(Error_Vel_M1, Error_Vel_M2);
+                	CH1_DC += 1000;
+					Direction(0);
+                	if (CH1_DC > 40000){CH1_DC = 40000;}
+                	if (turn >= 360){turn = 0;}
+                    TIM3 -> CCER = CH1_DC;
+                    TIM3 -> CCER = CH1_DC;
+                    break;
 
+                case 'd':  // right
+                	turn -= 5;
+                	get_head();
+                    PID_Servo(E_head);
+                    break;
+                default:
+                	last_cmd = 0;
+            }
 
+        }
 
-
-
-    E_head = turn - head;
-    while (E_head > 180) E_head -= 360;
-    while (E_head < -180) E_head += 360;
-
-	E_head = turn + E_head;
-
-    PID_Servo(E_head);
+    	if (timer_flag)
+    	{
+    		time_manual += 1;
+    	}
+    	HAL_Delay(1);
 
 
-// 	  if (start == 1)
-// 	  {
-// 		 // Setup of variables
-// 		        Vn = 90.0f; // 30 cm/s
-// 		        t1 = 2.0f; // aceleration time = 2 seconds
-// 		        t2 = 8.0f; // starting deceleration slope
-// 		        T = 10.0f; // finishing movement
-// 		        // deceleration time = 2 seconds
-// 		        SP_Pos = 0.0f;
-// 		        time_ctl = 0.0f;
-// 		        state = 1;
-// 		        HAL_TIM_Base_Start_IT(&htim1);
-// 		        start = 0;
-// 	  }
+    }
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+  	  // HCSR04_Read();
+  	  get_head();        // keep reading IMU in main loop
+
+        // If timer_flag is set (TIM1 fired), run control computations here (outside ISR)
+  	if (timer_flag)
+  	{
+  	    timer_flag = 0;
+
+  	    //isr_timestamp = HAL_GetTick();
+  	    //time_ctl = (float)isr_timestamp / 1000.0f;
+
+  	    time_ctl += 0.01;
+
+  	    // Copy encoder positions atomically
+  	    __disable_irq();
+  	    long pos1 = position_M1;
+  	    long pos2 = position_M2;
+  	    __enable_irq();
+
+  	    // Compute distances and velocities
+  	    distance_M1 = (pos1 * circunference) / ratio;
+  	    delta_M1    = distance_M1 - last_position_M1;
+  	    velocity_M1 = delta_M1 / d_time;
+  	    last_position_M1 = distance_M1;
+
+  	    distance_M2 = (pos2 * circunference) / ratio;
+  	    delta_M2    = distance_M2 - last_position_M2;
+  	    velocity_M2 = delta_M2 / d_time;
+  	    last_position_M2 = distance_M2;
+
+  	    //---------------------------------------------------------------------
+  	    // TRAPEZOIDAL PROFILE HERE
+  	    //---------------------------------------------------------------------
+  	    if (state != 0)
+  	    {
+  	        float t = time_ctl;
+
+  	        switch (state)
+  	        {
+  	            case 1: // ACCEL
+  	                SP_Vel_M1 = (t / t1) * Vn;
+  	                SP_Vel_M2 = SP_Vel_M1;
+  	                SP_Pos    = 0.5f * SP_Vel_M1 * t;
+
+  	                if (t >= t1)
+  	                    state = 2;
+  	                break;
+
+  	            case 2: // CRUISE
+  	                SP_Vel_M1 = Vn;
+  	                SP_Vel_M2 = Vn;
+  	                SP_Pos = (0.5f * t1 * Vn) +
+  	                         Vn * (t - t1);
+
+  	                if (t >= t2)
+  	                    state = 3;
+  	                break;
+
+  	            case 3: // DECCEL
+  	            {
+  	                float vel_dec = Vn * (T - t) / (T - t2);
+
+  	                SP_Vel_M1 = vel_dec;
+  	                SP_Vel_M2 = vel_dec;
+
+  	                SP_Pos = (0.5f * t1 * Vn) +
+  	                         Vn * (t2 - t1) +
+  	                         0.5f * (Vn + vel_dec) * (t - t2);
+
+  	                if (t >= T)
+  	                {
+  	                    SP_Vel_M1 = 0;
+  	                    SP_Vel_M2 = 0;
+  	                    //state = 0;
+  	                }
+
+  	                if (t >= T + 10)
+  	                {
+  	                	state = 4;
+  	                }
+
+  	            break;
+  	            }
+  	            case 4:
+  	            	T = T + 10;
+  	            	Direction(1);
+  	            	state = 1;
+  	            	break;
+
+
+  	        }
+  	    }
+
+  	    //---------------------------------------------------------------------
+
+  	    // Compute errors AFTER generating SP_Pos / SP_Vel
+  	    Error_Pos_M1 = SP_Pos - distance_M1;
+  	    Error_Vel_M1 = SP_Vel_M1 - velocity_M1;
+
+  	    Error_Pos_M2 = SP_Pos - distance_M2;
+  	    Error_Vel_M2 = SP_Vel_M2 - velocity_M2;
+
+  	    //PID_Position(Error_Pos_M1, Error_Pos_M2);
+  	    PID_Velocity(Error_Vel_M1, Error_Vel_M2);
+
+  	    send_flag = 1;
+  	}
 
 
 
-//       Imprimir por UART
-	    if (send_flag)
-	    {
-	        send_flag = 0;
-	        //HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 5);
-	        dt = last_ctl - time_ctl;
-	        last_ctl = time_ctl;
 
-	    }
 
-  }
+
+      PID_Servo(E_head);
+
+      // Optional: start motion on some condition (kept commented as in original)
+      /*
+      if (start == 1)
+      {
+          Vn = 90.0f;
+          t1 = 2.0f;
+          t2 = 8.0f;
+          T = 10.0f;
+          SP_Pos = 0.0f;
+          time_ctl = 0.0f;
+          state = 1;
+          HAL_TIM_Base_Start_IT(&htim1);
+          start = 0;
+      }
+      */
+
+      // UART telemetry: non-blocking
+      if (send_flag)
+      {
+          send_flag = 0;
+          // compose telemetry safely and send (small, infrequent)
+          int len = snprintf(msg, sizeof(msg), "%lu, v1=%.3f, v2=%.3f, h=%.2f\r\n",
+                             (unsigned long)isr_timestamp, velocity_M1, velocity_M2, head);
+          if (len > 0) HAL_UART_Transmit(&huart3, (uint8_t*)msg, (uint16_t)len, 20);
+      }
+
+    }
   /* USER CODE END 3 */
 }
 
@@ -505,9 +645,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 7200;
+  htim1.Init.Prescaler = 800;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 100-1;
+  htim1.Init.Period = 1000-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -793,7 +933,7 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 57600;
+  huart3.Init.BaudRate = 19200;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;
@@ -900,6 +1040,8 @@ void Direction(bool drive)
 
 		 HAL_GPIO_WritePin(M2_Direction_1_GPIO_Port, M2_Direction_1_Pin, GPIO_PIN_SET);
 		 HAL_GPIO_WritePin(M2_Direction_2_GPIO_Port, M2_Direction_2_Pin, GPIO_PIN_RESET);
+
+		 reverse_servo = -1;
 	}
 	else
 	{
@@ -908,6 +1050,8 @@ void Direction(bool drive)
 
 		 HAL_GPIO_WritePin(M2_Direction_1_GPIO_Port, M2_Direction_1_Pin, GPIO_PIN_RESET);
 		 HAL_GPIO_WritePin(M2_Direction_2_GPIO_Port, M2_Direction_2_Pin, GPIO_PIN_SET);
+
+		 reverse_servo = 1;
 	}
 }
 
@@ -953,33 +1097,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM1)
     {
-      isr_timestamp = HAL_GetTick();
 
-      // Motor 1
-      distance_M1 = (position_M1 * circunference)/ratio;
-      delta_M1 = distance_M1 - last_position_M1;
-      velocity_M1 = (delta_M1 / d_time); //* 60;
-      last_position_M1 = distance_M1;
-
-      // Motor 2
-      distance_M2 = (position_M2 * circunference)/ratio;
-      delta_M2 = distance_M2 - last_position_M2;
-      velocity_M2 = delta_M2 / d_time;
-      last_position_M2 = distance_M2;
-
-      // Motor 1 errors
-      Error_Pos_M1 = SP_Pos - distance_M1;
-      Error_Vel_M1 = SP_Vel_M1 - velocity_M1;
-
-      // Motor 2 errors
-      Error_Pos_M2 = SP_Pos - distance_M2;
-      Error_Vel_M2 = SP_Vel_M2 - velocity_M2;
-
-      //sprintf(msg, "%lu %.2f\r\n", isr_timestamp, velocity_M1);
-      send_flag = 1;
-
+        timer_flag = 1;
+        // do not call heavy math or HAL blocking functions here
     }
 }
+
 
 
 //------------------------------------------------------------
@@ -1021,7 +1144,7 @@ void PID_Position(float error_M1, float error_M2)
     static float last_error_M2 = 0;
 
     /* Outer-loop gains must be small */
-    static int Kp_M1 = 800;
+    static int Kp_M1 = 10;
     static int Ki_M1 = 0;
     static int Kd_M1 = 0;
 
@@ -1030,8 +1153,8 @@ void PID_Position(float error_M1, float error_M2)
     static int Kd_M2 = 0;
 
     /* Anti-windup */
-    int INTEGRAL_MAX = 500;
-    int INTEGRAL_MIN = -500;
+    int INTEGRAL_MAX = 40;
+    int INTEGRAL_MIN = -40;
 
 
     integral_M1 += error_M1 * d_time;
@@ -1059,17 +1182,18 @@ void PID_Position(float error_M1, float error_M2)
             (Ki_M2 * integral_M2) +
             (Kd_M2 * derivative_M2);
 
-
-    //Clamping
-    if (Corrected_Pos_M1> 39999) Corrected_Vel_M1 = 39999;
-    if (Corrected_Pos_M1< 8500) Corrected_Vel_M1 = 0;
-
-    if (Corrected_Pos_M1> 39999) Corrected_Vel_M1 = 39999;
-    if (Corrected_Pos_M1< 8500) Corrected_Vel_M1 = 0;
-
-
     SP_Vel_M1 = Corrected_Pos_M1 + Vn;
     SP_Vel_M2 = Corrected_Pos_M2 + Vn;
+
+    //Clamping
+    if (Corrected_Pos_M1> 120) Corrected_Vel_M1 = 120;
+    if (Corrected_Pos_M1< 0) Corrected_Vel_M1 = 0;
+
+    if (Corrected_Pos_M1> 120) Corrected_Vel_M1 = 120;
+    if (Corrected_Pos_M1< 0) Corrected_Vel_M1 = 0;
+
+
+
 
 }
 
@@ -1082,13 +1206,13 @@ void PID_Velocity(float error_M1, float error_M2)
     static int last_error_M2 = 0;
 
    /* Outer-loop gains must be small */
-    static int Kp_M1 = 400;
+    static int Kp_M1 = 1200;
     static int Ki_M1 = 100;
-    static int Kd_M1 = 10;
+    static int Kd_M1 = 0;
 
-    static int Kp_M2 = 400;
-    static int Ki_M2 = 100;
-    static int Kd_M2 = 10;
+    static int Kp_M2 = 1200;
+    static int Ki_M2 = 0;
+    static int Kd_M2 = 0;
 
     /* Anti-windup limits */
     const int INTEGRAL_MAX = 5000;
@@ -1112,7 +1236,7 @@ void PID_Velocity(float error_M1, float error_M2)
     float derivative_M2 = (error_M2 - last_error_M2) / d_time;
     last_error_M2 = error_M2;
 
-    uint16_t Corrected_Vel_M1 =
+    uint16_t Corrected_Vel_M1 = oli
             (
             (Kp_M1 * error_M1) +
             (Ki_M1 * integral_M1) +
@@ -1130,13 +1254,15 @@ void PID_Velocity(float error_M1, float error_M2)
 
     //Clamping
     if (Corrected_Vel_M1 > 39999) Corrected_Vel_M1 = 39999;
-    if (Corrected_Vel_M1 < 1000) Corrected_Vel_M1 = 0;
+    if (Corrected_Vel_M1 < 1000) Corrected_Vel_M1 = 1000;
+
 
     if (Corrected_Vel_M2 > 39999) Corrected_Vel_M2 = 39999;
-    if (Corrected_Vel_M2 < 1000) Corrected_Vel_M2 = 0;
+    if (Corrected_Vel_M2 < 1000) Corrected_Vel_M2 = 1000;
 
+    if (state == 0){Corrected_Vel_M1 = 0; Corrected_Vel_M2 = 0;}
 
-
+    dt = Corrected_Vel_M1;
     // Apply PWM — each motor independent
     TIM3->CCR1 = Corrected_Vel_M1;  // Motor 1
     TIM3->CCR2 = Corrected_Vel_M2;  // Motor 2
@@ -1181,13 +1307,13 @@ void PID_Servo(float error_serv)
 
 
     // Apply PWM
-    TIM2->CCR1 = 2800 + Corrected_Angle;
+    TIM2->CCR1 = Corrected_Angle;
 }
 
 void HCSR04_Read (void)
 {
 	HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_SET);  // pull the TRIG pin HIGH
-	HAL_Delay(10);  // wait for 10 us
+	delay(10);  // wait for 10 us
 	HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_RESET);  // pull the TRIG pin low
 
 	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC1);
@@ -1213,12 +1339,60 @@ uint8_t BNO055_Read(uint8_t reg)
 void get_head(void)
 {
 	uint8_t data[6];
-	HAL_I2C_Mem_Read(&hi2c1, BNO055_ADDR, 0x1A, 1, data, 6, 100);
+	HAL_I2C_Mem_Read(&hi2c1, BNO055_ADDR, 0x1A, 1, data, 6, 10);
 
 	int16_t heading = (data[1] << 8) | data[0];
 
 	head = heading / 16.0f;
+
+    // Steering servo: compute heading error and run servo PID in main loop
+    E_head = (turn - head) * reverse_servo;
+    while (E_head > 180.0f) E_head -= 360.0f;
+    while (E_head < -180.0f) E_head += 360.0f;
+
+    E_head = turn + E_head;
 }
+
+
+
+void I2C_Scanner(void)
+{
+    printf("Scanning I2C bus...\r\n");
+
+    HAL_StatusTypeDef result;
+    uint8_t address;
+
+    for (address = 1; address < 128; address++)
+    {
+        // Dirección 8-bit = address << 1
+        result = HAL_I2C_IsDeviceReady(&hi2c1, (address << 1), 1, 20);
+
+        if (result == HAL_OK)
+        {
+            sprintf(msg," I2C device found at address: 0x%02X (7-bit)\r\n", address);
+            HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
+        }
+    }
+
+    sprintf(msg,"Scan complete.\r\n");
+    HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
+}
+
+//------------------------------------------------------------------------------
+// Telemetria
+// ----------------------------------------------------------------------------
+
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART3)
+    {
+    	//snprintf(tx_buff, sizeof(tx_buff), "RX=0x%02X\r\n", rx_byte);
+        //HAL_UART_Transmit_IT(&huart3, (uint8_t*)tx_buff, strlen(tx_buff));
+        //HAL_UART_Receive_IT(&huart3, (uint8_t*)rx_byte, 1);
+    }
+}
+
 
 
 
@@ -1236,9 +1410,10 @@ void Error_Handler(void)
   while (1)
   {
   }
-}
+
 
   /* USER CODE END Error_Handler_Debug */
+}
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
