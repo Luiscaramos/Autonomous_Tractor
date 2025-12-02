@@ -224,7 +224,7 @@ int main(void)
   while (1)
     {
 	  HCSR04_Read();
-	  delay(100);
+	  HAL_Delay(100);
 
   	  distance_M1 = (position_M1/ratio) * circunference;
   	  distance_M2 = (position_M2/ratio) * circunference;
@@ -232,66 +232,59 @@ int main(void)
   	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
   	  angular_velocity_M2 =  (delta_M2/(ratio))/(d_time/60);
 
-  	if (Distance <= 20)
+  	if (Distance < 20)
   	{
-  	    //static uint32_t buzzer_timer = 0;
+  	    static uint32_t buzzer_timer = 0;
   	    CH1_DC = 0;
-  	}
-  	    /* if (HAL_GetTick() - buzzer_timer >= 244)
+  	    if (HAL_GetTick() - buzzer_timer >= 500)
   	    {
-  	        buzzer_timer = HAL_GetTick();
-  	        HAL_GPIO_TogglePin(Buzzer_GPIO_Port, Buzzer_Pin);
+  	    	buzzer_timer = HAL_GetTick();
+  	    	HAL_GPIO_TogglePin(Buzzer_GPIO_Port, Buzzer_Pin);
   	    }
-  	} else
-  	{
-  	    HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
-  	    CH1_DC = 10000;
-  	} *//*
-      } else
-      {
-    	  CH1_DC = 10000;
-    	  HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
-      }*/
+  	}
 
-  	  if (count == 4)
+
+  	else if (count == 4)
   	  {
   		  CH1_DC = 0;
   	  }
-  	switch(state)
-  	{
-  	    case 0:{ // moving forward until 1m
-  	        CH1_DC = 10000;
+  	else
+	{
+		switch(state)
+		{
+			case 0:{ // moving forward until 1m
+				CH1_DC = 10000;
 
-  	        if (distance_M1 >= 3.694) // desired_distance - 0.306 (ackerman ideal radius)
-  	        {
-  	            TIM3 -> CCR1 = 0;
-  	            TIM3 -> CCR2 = 0;
-  	            turn += 90;
-  	            HAL_Delay(10000);
-//  	            if (head < 180){turn += 90;}
-//  	            if (270 == turn){turn = 90;}
-//  	            if (head > 270){turn = 0;}
+				if (distance_M1 >= 3.694) // desired_distance - 0.306 (ackerman ideal radius)
+				{
+					TIM3 -> CCR1 = 0;
+					TIM3 -> CCR2 = 0;
+					turn += 90;
+					HAL_Delay(10000);
+	//  	            if (head < 180){turn += 90;}
+	//  	            if (270 == turn){turn = 90;}
+	//  	            if (head > 270){turn = 0;}
 
-  	            distance_M1 = 0;
-  	            state = 1;
-  	            CH1_DC = 10000;
-  	            count += 1;
-  	        }
-  	        break;
-  	    }
-  	    case 1:{ // waiting for error < 5
-  	        //CH1_DC = 0;
-  	        if (E_error < 5)
-  	        {
-  	            position_M1 = 0;
-  	            distance_M1 = 0;
-  	            state = 0;
-  	        }
-  	        break;
-  	    }
-  	    default: {state=0; break;}
-  	}
-
+					distance_M1 = 0;
+					state = 1;
+					CH1_DC = 10000;
+					count += 1;
+				}
+				break;
+			}
+			case 1:{ // waiting for error < 5
+				//CH1_DC = 0;
+				if (E_error < 5)
+				{
+					position_M1 = 0;
+					distance_M1 = 0;
+					state = 0;
+				}
+				break;
+			}
+			default: {state=0; break;}
+		}
+	}
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
