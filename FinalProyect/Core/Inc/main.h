@@ -96,6 +96,8 @@ void Error_Handler(void);
 #define TCK_GPIO_Port GPIOA
 #define PWM_SERVO_Pin GPIO_PIN_15
 #define PWM_SERVO_GPIO_Port GPIOA
+#define Buzzer_Pin GPIO_PIN_2
+#define Buzzer_GPIO_Port GPIOD
 #define M2_Direction_1_Pin GPIO_PIN_4
 #define M2_Direction_1_GPIO_Port GPIOB
 #define M2_Direction_2_Pin GPIO_PIN_5

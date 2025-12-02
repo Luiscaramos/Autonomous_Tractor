@@ -80,17 +80,22 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
 void delay (uint16_t time);
 
 
+
+
 // lECTURA DE IMU
 void BNO055_Write(uint8_t reg, uint8_t value);
 uint8_t BNO055_Read(uint8_t reg);
+
+
+// PIDs
+void PID_servo(float error);
 
 void get_head(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int CH1_DC = 18000;
-int POTATO = 0;
+int CH1_DC = 9000;
 float angular_velocity_M1;
 float angular_velocity_M2;
 
@@ -115,13 +120,20 @@ float circunference = 3.14*0.087;
 int delta_M1;
 int delta_M2;
 
-float target = 5;
+//float target[] = {1, (1/3.14), (1/3.14), (1/3.14)};
+
+float turn = 0;
 
 float distance_M1;
 float distance_M2;
 
 float head;
+float E_error;
+int stage;
 
+int flag = 1;
+int state = 0;
+int count = 0;
 
 
 uint32_t IC_Val1 = 0;
@@ -129,9 +141,6 @@ uint32_t IC_Val2 = 0;
 uint32_t Difference = 0;
 uint8_t Is_First_Captured = 0;  // is the first value captured ?
 uint32_t Distance  = 0;
-
-
-
 
 
 /* USER CODE END 0 */
@@ -151,7 +160,6 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
 
   /* USER CODE BEGIN Init */
 
@@ -197,49 +205,105 @@ int main(void)
 
   if(id != 0xA0) {
       // ERROR: Sensor no detectado
-	  char msg[50];
-      sprintf(msg, "Error en la conexion del BN0 \r\n");
-      HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
-      while(1);
+      while(1){
+          // Imprimir por UART
+          char msg[50];
+          sprintf(msg, "H: ERORR conecting BMO \r\n");
+          HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
+      }
   }
 
   // Cambiar a CONFIG MODE
   BNO055_Write(0x3D, 0x00);
-  HAL_Delay(25);
+  delay(25);
 
   // Cambiar a NDOF (9DOF fusion)
   BNO055_Write(0x3D, 0x0C);
-  HAL_Delay(20);
+  delay(20);
 
   while (1)
     {
 	  HCSR04_Read();
-	  HAL_Delay(200);
+	  delay(100);
 
-  	  distance_M1 = (position_M1/ratio)* circunference;
-  	  distance_M2 = (position_M2/ratio)* circunference;
+  	  distance_M1 = (position_M1/ratio) * circunference;
+  	  distance_M2 = (position_M2/ratio) * circunference;
 
   	  angular_velocity_M1 =  (delta_M1/(ratio))/(d_time/60);
   	  angular_velocity_M2 =  (delta_M2/(ratio))/(d_time/60);
 
-  	  if (distance_M1 > target)
+  	if (Distance <= 20)
+  	{
+  	    //static uint32_t buzzer_timer = 0;
+  	    CH1_DC = 0;
+  	}
+  	    /* if (HAL_GetTick() - buzzer_timer >= 244)
+  	    {
+  	        buzzer_timer = HAL_GetTick();
+  	        HAL_GPIO_TogglePin(Buzzer_GPIO_Port, Buzzer_Pin);
+  	    }
+  	} else
+  	{
+  	    HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
+  	    CH1_DC = 10000;
+  	} *//*
+      } else
+      {
+    	  CH1_DC = 10000;
+    	  HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
+      }*/
+
+  	  if (count == 4)
   	  {
   		  CH1_DC = 0;
   	  }
-  	  else
-  	  {
-  		  CH1_DC = 9000;
-  	  }
+  	switch(state)
+  	{
+  	    case 0:{ // moving forward until 1m
+  	        CH1_DC = 10000;
 
-//  	  if (Distance < 20)
-//  	  {
-//  		  CH1_DC = 0;
-//  	  }
+  	        if (distance_M1 >= 3.694) // desired_distance - 0.306 (ackerman ideal radius)
+  	        {
+  	            TIM3 -> CCR1 = 0;
+  	            TIM3 -> CCR2 = 0;
+  	            turn += 90;
+  	            HAL_Delay(10000);
+//  	            if (head < 180){turn += 90;}
+//  	            if (270 == turn){turn = 90;}
+//  	            if (head > 270){turn = 0;}
+
+  	            distance_M1 = 0;
+  	            state = 1;
+  	            CH1_DC = 10000;
+  	            count += 1;
+  	        }
+  	        break;
+  	    }
+  	    case 1:{ // waiting for error < 5
+  	        //CH1_DC = 0;
+  	        if (E_error < 5)
+  	        {
+  	            position_M1 = 0;
+  	            distance_M1 = 0;
+  	            state = 0;
+  	        }
+  	        break;
+  	    }
+  	    default: {state=0; break;}
+  	}
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  	get_head();
+  	  get_head();
+
+      E_error = turn - head;
+      while (E_error > 180) E_error -= 360;
+      while (E_error < -180) E_error += 360;
+
+
+
+  	  PID_servo(E_error);
   	  TIM3 -> CCR1 = CH1_DC;
   	  TIM3 -> CCR2 = CH1_DC;
   	  TIM2 -> CCR1 = ackerman;
@@ -249,8 +313,7 @@ int main(void)
       // Imprimir por UART
       char msg[50];
       sprintf(msg, "H: %.2f \r\n", head);
-      HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
-
+      HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
   }
   /* USER CODE END 3 */
 }
@@ -604,7 +667,7 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 71;
+  htim4.Init.Prescaler = 72-1;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim4.Init.Period = 65535;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -730,6 +793,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, M2_Direction_1_Pin|M2_Direction_2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : B1_Pin M1_ENC_A_Pin */
@@ -762,6 +828,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(M2_ENC_B_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Buzzer_Pin */
+  GPIO_InitStruct.Pin = Buzzer_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Buzzer_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : M2_Direction_1_Pin M2_Direction_2_Pin */
   GPIO_InitStruct.Pin = M2_Direction_1_Pin|M2_Direction_2_Pin;
@@ -854,7 +927,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	if (htim->Instance == TIM1)
 	{
-		HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_5);
+		//HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_5);
 
 		delta_M1 = (position_M1-last_position_M1);
 		last_position_M1 = position_M1;
@@ -893,7 +966,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
         else
         {
             IC_Val2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
-
+            //__HAL_TIM_SET_COUNTER(htim, 0);
             Difference = IC_Val2;
             Distance = Difference * 0.034 / 2;
 
@@ -939,6 +1012,29 @@ void get_head(void)
 	int16_t heading = (data[1] << 8) | data[0];
 
 	head = heading / 16.0f;
+}
+
+//Control P de direccion de servo
+
+void PID_servo(float error)
+{
+    float kp = 100.0f;
+    float ki = 0.0f;
+    float kd = 0.0f;
+
+    static float integral = 0.0f;
+    static float last_error = 0.0f;
+
+//    integral += error * d_time;
+    float derivative = (error - last_error) / d_time;
+//    last_error = error;
+
+    float output = 1900.0f + (error * kp) + (integral * ki) + (derivative * kd);
+
+    if (output < 1200.0f) output = 1200.0f;
+    if (output > 2600.0f) output = 2600.0f;
+
+    ackerman = (int)output; /* actually update steering */
 }
 
 /* USER CODE END 4 */
