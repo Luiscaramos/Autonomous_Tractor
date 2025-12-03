@@ -178,11 +178,14 @@ int reverse_servo = 0;
    float Corrected_Pos_M2 = 0.0f;
    float Corrected_Vel_M2 = 0.0f;
 
+   int CH1_DC = 0;
+
 
    float time_ctl = 0.0f;
    int state = 1;
 
    float turn = 0;
+
 
 
 uint32_t IC_Val1 = 0;
@@ -198,6 +201,9 @@ int timer_flag = 1;
 float last_ctl = 0;
 float dt;
 
+// HAdrcodeo
+
+int count = 0;
 
 uint8_t buffer[1];
 
@@ -411,69 +417,54 @@ int main(void)
   	    //---------------------------------------------------------------------
   	    // TRAPEZOIDAL PROFILE HERE
   	    //---------------------------------------------------------------------
-  	    if (state != 0)
-  	    {
-  	        float t = time_ctl;
+  	  if (Distance < 20)
+  	    	{
+  	    	CH1_DC = 0;
+  	    	HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_SET);
+  	    	}
+  	  else if (count == 4)
+  	    	{
+  	    	HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
+  	    	CH1_DC = 0;
+  	    	}
+  	  else
+  	  	{
+  	    	HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
+  	  		switch(state)
+  	  		{
+  	  			case 0:{ // moving forward until 1m
+  	  				CH1_DC = 10000;
 
-  	        switch (state)
-  	        {
-  	        	case 0:
-  	        		break;
-  	            case 1: // ACCEL
-  	                SP_Vel_M1 = (t / t1) * Vn;
-  	                SP_Vel_M2 = SP_Vel_M1;
-  	                SP_Pos    = 0.5f * SP_Vel_M1 * t;
+  	  				if (distance_M1 >= 3.694) // desired_distance - 0.306 (ackerman ideal radius)
+  	  				{
+  	  					TIM3 -> CCR1 = 0;
+  	  					TIM3 -> CCR2 = 0;
+  	  					turn += 90;
+  	  					HAL_Delay(10000);
+  	  	//  	            if (head < 180){turn += 90;}
+  	  	//  	            if (270 == turn){turn = 90;}
+  	  	//  	            if (head > 270){turn = 0;}
 
-  	                if (t >= t1)
-  	                    state = 2;
-  	                break;
-
-  	            case 2: // CRUISE
-  	                SP_Vel_M1 = Vn;
-  	                SP_Vel_M2 = Vn;
-  	                SP_Pos = (0.5f * t1 * Vn) +
-  	                         Vn * (t - t1);
-
-  	                if (t >= t2)
-  	                    state = 3;
-  	                break;
-
-  	            case 3: // DECCEL
-  	            {
-  	                float vel_dec = Vn * (T - t) / (T - t2);
-
-  	                SP_Vel_M1 = vel_dec;
-  	                SP_Vel_M2 = vel_dec;
-
-  	                SP_Pos = (0.5f * t1 * Vn) +
-  	                         Vn * (t2 - t1) +
-  	                         0.5f * (Vn + vel_dec) * (t - t2);
-
-  	                if (t >= T)
-  	                {
-  	                    SP_Vel_M1 = 0;
-  	                    SP_Vel_M2 = 0;
-  	                    //state = 0;
-  	                }
-
-  	                if (t >= T + 10)
-  	                {
-  	                	state = 4;
-  	                }
-
-  	            break;
-  	            }
-  	            case 4:
-  	            	//T = T + 10;
-  	            	Direction(0);
-  	            	state = 0;
-  	            	break;
-  	            default:
-  	            	state = 0;
-  	            	break;
-
-  	        }
-  	    }
+  	  					distance_M1 = 0;
+  	  					state = 1;
+  	  					CH1_DC = 10000;
+  	  					count += 1;
+  	  				}
+  	  				break;
+  	  			}
+  	  			case 1:{ // waiting for error < 5
+  	  				//CH1_DC = 0;
+  	  				if (E_head < 5)
+  	  				{
+  	  					position_M1 = 0;
+  	  					distance_M1 = 0;
+  	  					state = 0;
+  	  				}
+  	  				break;
+  	  			}
+  	  			default: {state=0; break;}
+  	  		}
+  	  	}
 
   	    //---------------------------------------------------------------------
 
