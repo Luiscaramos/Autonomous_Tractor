@@ -133,7 +133,7 @@ char tx_buff[16];
 
 uint8_t last_cmd;
 uint8_t new_cmd;
-int manual_mode = 0;
+int manual_mode = 1;
 
 
 
@@ -290,6 +290,7 @@ int main(void)
     {
     int time_manual = 0;
     int CH1_DC = 0;
+    int Servo_Di = 1900;
     while (manual_mode)
     {
         if (timer_flag) {   // 1ms timer tick
@@ -298,7 +299,7 @@ int main(void)
         }
 
         // every 100ms
-        if (time_manual >= 100)
+        if (time_manual >= 10)
         {
             time_manual = 0;
 
@@ -319,7 +320,7 @@ int main(void)
 
                 case 'w':  // forward
                     Direction(0);
-                    CH1_DC += 1000;
+                    CH1_DC += 5000;
                     if (CH1_DC > 40000) CH1_DC = 40000;
 
                     TIM3->CCR1 = CH1_DC;
@@ -327,15 +328,19 @@ int main(void)
                     break;
 
                 case 'a':  // left
-                    turn += 5;
-                    if (turn >= 360) turn = 0;
+                    /*turn = -70;
+                    //if (turn >= 360) turn = 0;
                     get_head();
-                    PID_Servo(E_head);
+                    PID_Servo(E_head);*/
+                	Servo_Di += 100;
+                	if (Servo_Di >= 2700){Servo_Di = 2700;}
+                	TIM2 -> CCR1 = Servo_Di;
+
                     break;
 
                 case 's':  // backward
                     Direction(1);   // backward direction?
-                    CH1_DC += 1000;
+                    CH1_DC += 5000;
                     if (CH1_DC > 40000) CH1_DC = 40000;
 
                     TIM3->CCR1 = CH1_DC;
@@ -343,10 +348,26 @@ int main(void)
                     break;
 
                 case 'd':  // right
-                    turn -= 5;
-                    if (turn < 0) turn = 360;
+                    //turn = 70;
+                    //if (turn < 0) turn = 90;
+                    /*get_head();
+                    PID_Servo(E_head);*/
+                	Servo_Di -= 100;
+                	if (Servo_Di <= 1100){Servo_Di = 1100;}
+                	TIM2 -> CCR1 = Servo_Di;
+                    break;
+
+                case 'p': // piiip
+                	HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_SET);
+                	HAL_Delay(350);
+                	HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
+                	break;
+
+                case 'f': // servo forward
+/*                	turn = 0;
                     get_head();
-                    PID_Servo(E_head);
+                    PID_Servo(E_head);*/
+                	TIM2 -> CCR1 = 1900;
                     break;
             }
         }
@@ -462,6 +483,13 @@ int main(void)
 
   	    Error_Pos_M2 = SP_Pos - distance_M2;
   	    Error_Vel_M2 = SP_Vel_M2 - velocity_M2;
+
+  	    // Steering servo: Compute heading error and run servo PID
+  	    E_head = (turn - head);
+  	    while (E_head > 180.0f) E_head -= 360.0f;
+  	    while (E_head < -180.0f) E_head += 360.0f;
+
+  	    E_head = turn + E_head;
 
   	    PID_Position(Error_Pos_M1, Error_Pos_M2);
   	    PID_Velocity(Error_Vel_M1, Error_Vel_M2);
@@ -654,9 +682,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 800;
+  htim1.Init.Prescaler = 8000;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 1000-1;
+  htim1.Init.Period = 100-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -942,7 +970,7 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 9600;
+  huart3.Init.BaudRate = 57600;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;
@@ -981,6 +1009,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, M1_Direction_2_Pin|M1_Direction_1_Pin|TRIG_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, M2_Direction_1_Pin|M2_Direction_2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : B1_Pin M1_ENC_A_Pin */
@@ -1013,6 +1044,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(M2_ENC_B_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Buzzer_Pin */
+  GPIO_InitStruct.Pin = Buzzer_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Buzzer_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : M2_Direction_1_Pin M2_Direction_2_Pin */
   GPIO_InitStruct.Pin = M2_Direction_1_Pin|M2_Direction_2_Pin;
@@ -1359,12 +1397,6 @@ void get_head(void)
 
 	head = heading / 16.0f;
 
-    // Steering servo: compute heading error and run servo PID in main loop
-    E_head = (turn - head) * reverse_servo;
-    while (E_head > 180.0f) E_head -= 360.0f;
-    while (E_head < -180.0f) E_head += 360.0f;
-
-    E_head = turn + E_head;
 }
 
 
@@ -1411,7 +1443,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         }
 
         // manual movement commands
-        else if (c == 'w' || c == 'a' || c == 's' || c == 'd') {
+        else if (c == 'w' || c == 'a' || c == 's' || c == 'd' || c == 'p' || c == 'f') {
             last_cmd = c;
             new_cmd = 1;
         }
