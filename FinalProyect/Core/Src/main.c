@@ -205,6 +205,8 @@
 	float dt;
 
 
+uint8_t buffer[1];
+
 	/* USER CODE END 0 */
 
 	/**
@@ -279,7 +281,7 @@
 		if(id != 0xA0) {
 			// ERROR: Sensor no detectado -> print once and go to safe idle (don't busy-loop UART)
 			sprintf(msg, "Error en la conexion del BNO055: ID = 0x%02X\r\n", id);
-			HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
+			HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
 			// safe idle to allow interrupts and debugger; blink or delay instead of continuous printing
 			while(1)
 			{
@@ -295,71 +297,75 @@
 		BNO055_Write(0x3D, 0x0C);
 		HAL_Delay(20);
 
-		while (1)
-		{
-		int time_manual = 0;
-		int CH1_DC = 0;
-		while(manual_mode)
-		{
+    while (1)
+    {
+    int time_manual = 0;
+    int CH1_DC = 0;
+    while (manual_mode)
+    {
+        if (timer_flag) {   // 1ms timer tick
+            time_manual += 1;
+            timer_flag = 0;
+        }
 
-			if (time_manual > 100)
-			{
+        // every 100ms
+        if (time_manual >= 100)
+        {
+            time_manual = 0;
 
-				if (!new_cmd){last_cmd = 0;}
-				time_manual = 0;
-				switch(last_cmd)
-				{
-					case 0:
-						CH1_DC = 0;
-						TIM3 -> CCER = CH1_DC;
-						TIM3 -> CCER = CH1_DC;
-					break;
-					case 'w':  // forward
-						CH1_DC += 1000;
-						Direction(0);
-						if (CH1_DC > 40000){CH1_DC = 40000;}
-						TIM3 -> CCER = CH1_DC;
-						TIM3 -> CCER = CH1_DC;
+            // If no new key received, stop motors
+            if (!new_cmd) {
+                last_cmd = 0;
+            }
 
-						break;
+            new_cmd = 0; // consume key
 
-					case 'a':  // left
-						turn += 5;
-						if (turn >= 360){turn = 0;}
-						get_head();
-						PID_Servo(E_head);
-						break;
+            switch (last_cmd)
+            {
+                case 0:
+                    CH1_DC = 0;
+                    TIM3->CCR1 = CH1_DC;
+                    TIM3->CCR2 = CH1_DC;
+                    break;
 
-					case 's':  // backward
+                case 'w':  // forward
+                    Direction(0);
+                    CH1_DC += 1000;
+                    if (CH1_DC > 40000) CH1_DC = 40000;
 
-						CH1_DC += 1000;
-						Direction(0);
-						if (CH1_DC > 40000){CH1_DC = 40000;}
-						if (turn >= 360){turn = 0;}
-						TIM3 -> CCER = CH1_DC;
-						TIM3 -> CCER = CH1_DC;
-						break;
+                    TIM3->CCR1 = CH1_DC;
+                    TIM3->CCR2 = CH1_DC;
+                    break;
 
-					case 'd':  // right
-						turn -= 5;
-						get_head();
-						PID_Servo(E_head);
-						break;
-					default:
-						last_cmd = 0;
-				}
+                case 'a':  // left
+                    turn += 5;
+                    if (turn >= 360) turn = 0;
+                    get_head();
+                    PID_Servo(E_head);
+                    break;
 
-			}
+                case 's':  // backward
+                    Direction(1);   // backward direction?
+                    CH1_DC += 1000;
+                    if (CH1_DC > 40000) CH1_DC = 40000;
 
-			if (timer_flag)
-			{
-				time_manual += 1;
-			}
-			HAL_Delay(1);
+                    TIM3->CCR1 = CH1_DC;
+                    TIM3->CCR2 = CH1_DC;
+                    break;
 
+                case 'd':  // right
+                    turn -= 5;
+                    if (turn < 0) turn = 360;
+                    get_head();
+                    PID_Servo(E_head);
+                    break;
+            }
+        }
 
-		}
-		/* USER CODE END WHILE */
+        HAL_Delay(1);  // small delay but not blocking too much
+    }
+
+    /* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
 
@@ -978,20 +984,20 @@
 
 	  /* USER CODE BEGIN USART3_Init 1 */
 
-	  /* USER CODE END USART3_Init 1 */
-	  huart3.Instance = USART3;
-	  huart3.Init.BaudRate = 19200;
-	  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-	  huart3.Init.StopBits = UART_STOPBITS_1;
-	  huart3.Init.Parity = UART_PARITY_NONE;
-	  huart3.Init.Mode = UART_MODE_TX_RX;
-	  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-	  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
-	  if (HAL_UART_Init(&huart3) != HAL_OK)
-	  {
-		Error_Handler();
-	  }
-	  /* USER CODE BEGIN USART3_Init 2 */
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 9600;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
 
 	  /* USER CODE END USART3_Init 2 */
 
@@ -1436,15 +1442,29 @@
 	// ----------------------------------------------------------------------------
 
 
-	void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-	{
-		if (huart->Instance == USART3)
-		{
-			//snprintf(tx_buff, sizeof(tx_buff), "RX=0x%02X\r\n", rx_byte);
-			//HAL_UART_Transmit_IT(&huart3, (uint8_t*)tx_buff, strlen(tx_buff));
-			//HAL_UART_Receive_IT(&huart3, (uint8_t*)rx_byte, 1);
-		}
-	}
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART3) {
+    	HAL_UART_Transmit(&huart3, buffer, 1, 0xFFFF);
+        uint8_t c = buffer[0];
+
+        // toggle modes
+        if (c == 'm') {
+            manual_mode = 1;
+        }
+        else if (c == 'n') {
+            manual_mode = 0;
+        }
+
+        // manual movement commands
+        else if (c == 'w' || c == 'a' || c == 's' || c == 'd') {
+            last_cmd = c;
+            new_cmd = 1;
+        }
+
+        HAL_UART_Receive_IT(&huart3, buffer, 1);
+    }
+}
+
 
 
 
