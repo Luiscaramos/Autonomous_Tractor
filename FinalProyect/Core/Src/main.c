@@ -156,7 +156,7 @@
 
 
 	// Setup of variables
-	   float Vn = 90.0f; // cm/s
+	   float Vn = 50.0f; // cm/s
 	   float accel = 2.0f;
 	   float deccel = 2.0f;
 	   float t1 = 2.0f; // aceleration time = 2 seconds
@@ -369,21 +369,21 @@ uint8_t buffer[1];
 
 		/* USER CODE BEGIN 3 */
 
-		  HCSR04_Read();
+//		  HCSR04_Read();
 		  get_head();        // keep reading IMU in main loop
 
-		  if (Distance < 30)
-		  {
-
-		      emergency_stop = 1;
-		      state = 0;
-
-		      TIM3->CCR1 = 0;
-		      TIM3->CCR2 = 0;
-
-		      timer_flag = 0;
-		      HAL_Delay(3000);
-		  }
+//		  if (Distance < 30)
+//		  {
+//
+//		      emergency_stop = 1;
+//		      state = 0;
+//
+//		      TIM3->CCR1 = 0;
+//		      TIM3->CCR2 = 0;
+//
+//		      timer_flag = 0;
+//		      HAL_Delay(3000);
+//		  }
 
 
 
@@ -468,29 +468,10 @@ uint8_t buffer[1];
 							//state = 0;
 						}
 
-						if (t >= T + 10)
-						{
-							turn += 90;
-							state = 4;
-						}
 
 					break;
 					}
-					case 4:
-						SP_Vel_M1 = 60;
-						SP_Vel_M2 = 60;
-			  	        if (E_head < 5)
-			  	        {
-			  	        	if (pause == 4){state = 0; break;}
-			  	            position_M1 = 0;
-			  	            distance_M1 = 0;
-			  	            position_M2 = 0;
-			  	            distance_M2 = 0;
-			  	            time_ctl = 0;
-			  	            state = 1;
-			  	            pause += 1;
-			  	        }
-						break;
+
 					default:
 						state = 0;
 						break;
@@ -1240,11 +1221,11 @@ uint8_t buffer[1];
 		SP_Vel_M2 += Corrected_Pos_M2 + Vn;
 
 		//Clamping
-		if (Corrected_Pos_M1> 120) Corrected_Vel_M1 = 120;
-		if (Corrected_Pos_M1< 0) Corrected_Vel_M1 = 0;
+		if (Corrected_Pos_M1> 120) SP_Vel_M1 = 120;
+		if (Corrected_Pos_M1< 0) SP_Vel_M1 = 0;
 
-		if (Corrected_Pos_M1> 120) Corrected_Vel_M1 = 120;
-		if (Corrected_Pos_M1< 0) Corrected_Vel_M1 = 0;
+		if (Corrected_Pos_M1> 120) SP_Vel_M1 = 120;
+		if (Corrected_Pos_M1< 0) SP_Vel_M1 = 0;
 
 
 
@@ -1308,7 +1289,7 @@ uint8_t buffer[1];
 
 
 
-		if (state == 0){Corrected_Vel_M1 = 0; Corrected_Vel_M2 = 0;}
+		//if (state == 0){Corrected_Vel_M1 = 0; Corrected_Vel_M2 = 0;}
 
 		dt = Corrected_Vel_M1;
 
